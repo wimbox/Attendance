@@ -262,8 +262,9 @@ class StaffPortal {
         const now = Date.now();
         const ageInSeconds = (now - qrTimestamp) / 1000;
         
-        if (ageInSeconds > 60 || ageInSeconds < -60) {
-            this.showMsg(`عفواً، صورة الباركود منتهية الصلاحية. يرجى المسح من الشاشة مباشرة.`, "#f43f5e");
+        // Increased tolerance to 600 seconds (10 mins) to fix device clock mismatch issues
+        if (ageInSeconds > 600 || ageInSeconds < -600) {
+            this.showMsg(`عفواً، صورة الباركود منتهية الصلاحية. يرجى المسح من الشاشة مباشرة. (فرق التوقيت بين الأجهزة)`, "#f43f5e");
             setTimeout(() => this.stopScanner(), 2000);
             return;
         }
