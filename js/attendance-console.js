@@ -134,8 +134,10 @@ class AttendanceConsole {
 
             try {
                 // Dual-listening strategy (Branch specific + Universal)
-                if (branchId) window.Cloud.onScanReceived(branchId, handleCloudScan, 'console_branch');
-                window.Cloud.onScanReceived(null, handleCloudScan, 'console_universal');
+            // 🌍 v9.1: Single-Listener strategy - only tune into the current branch (or universal)
+            // Listening twice was causing 'Double Trigger' (In/Out same second)
+            const targetBranch = branchId || null;
+            window.Cloud.onScanReceived(targetBranch, handleCloudScan, 'console_primary');
             } catch (e) { console.error("Cloud Listener Error:", e); }
         }
 
