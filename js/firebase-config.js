@@ -13,10 +13,14 @@ const firebaseConfig = {
   appId: "1:771070677548:web:0e8dfa6b2668d08b303789"
 };
 
-// Initialize Firebase only if config is valid
+// ✅ v9.0: Safe Init - Prevents 'duplicate app' error if script is loaded more than once
 if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
-    firebase.initializeApp(firebaseConfig);
-    console.log("🔥 Firebase Initialized - Cloud Sync Ready!");
+    if (!firebase.apps || !firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+        console.log("🔥 Firebase Initialized - Cloud Sync Ready!");
+    } else {
+        console.log("🔥 Firebase already active - reusing existing instance.");
+    }
 } else {
     console.warn("⚠️ Firebase NOT initialized. Please set your credentials in js/firebase-config.js");
 }
@@ -59,6 +63,28 @@ window.Cloud = {
         const ref = db.ref(`edumaster/finances/${branchId}`).push();
         return ref.set({
             ...record,
+            serverTimestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+    },
+
+    // 👨‍🏫 Trainer Registration Cloud Sync (v2.0)
+    pushTrainer: (branchId, trainerData) => {
+        if (!window.firebase) return;
+        const db = firebase.database();
+        const ref = db.ref(`edumaster/full_sync/trainers/${trainerData.id}`);
+        return ref.set({
+            ...trainerData,
+            serverTimestamp: firebase.database.ServerValue.TIMESTAMP
+        });
+    },
+
+    // 👷 Employee Registration Cloud Sync (v2.0)
+    pushUser: (branchId, userData) => {
+        if (!window.firebase) return;
+        const db = firebase.database();
+        const ref = db.ref(`edumaster/full_sync/users/${userData.id}`);
+        return ref.set({
+            ...userData,
             serverTimestamp: firebase.database.ServerValue.TIMESTAMP
         });
     },
@@ -121,12 +147,12 @@ window.Cloud = {
         });
     },
 
-    // 🤖 REAL-TIME SCAN SYNC (v7.1 - Flat Channel)
+    // 🤖 REAL-TIME SCAN SYNC (v8.1 - Improved Robustness)
     startScanBackgroundSync: (branchId, onSyncCallback) => {
         if (!window.firebase) return;
         const db = firebase.database();
         // 🌍 v7.1: FLAT CHANNEL - Listens to all scans everywhere for maximum speed
-        const scansRef = db.ref(`edumaster/all_scans`).limitToLast(1);
+        const scansRef = db.ref(`edumaster/all_scans`).limitToLast(5); // Increased sweep
 
         // Per-page deduplication to allow all tabs to sync independently
         const lid = window.location.pathname.split('/').pop() || 'bg_sync';
@@ -137,19 +163,32 @@ window.Cloud = {
             if (!scan || !scan.id) return;
             
             const key = snapshot.key;
-            const lastProcessed = localStorage.getItem(dedupKey);
-            if (key === lastProcessed) return;
+            if (localStorage.getItem(dedupKey) === key) return;
             localStorage.setItem(dedupKey, key);
 
-            // Security: Prevent infinite loop if something goes wrong
             console.log(`📡 [Universal Sync] Received [${lid}]:`, scan.name || scan.id);
-            // 🏷️ v7.2 Fix: Use window.Cloud explicitly (instead of lexically bound 'this')
             window.Cloud._handleCloudScan(scan, onSyncCallback);
         });
     },
 
+    // 📥 [History Pull] - Fetch today's scans from cloud (New v9.0)
+    pullTodayScans: async () => {
+        if (!window.firebase) return [];
+        const db = firebase.database();
+        try {
+            // Since Firebase keys are push-IDs (chronological), we pull the last 150 scans
+            const snapshot = await db.ref(`edumaster/all_scans`).limitToLast(150).once('value');
+            const data = snapshot.val();
+            if (!data) return [];
+            return Object.values(data);
+        } catch (e) {
+            console.error("❌ Cloud History Pull Failed:", e);
+            return [];
+        }
+    },
+
     // Internal helper to reuse logic
-    _handleCloudScan: (scan, onSyncCallback) => {
+    _handleCloudScan: async (scan, onSyncCallback) => {
         if (!scan) return;
         
         let targetId = scan.id;
@@ -161,42 +200,90 @@ window.Cloud = {
             
             const cleanCode = String(scan.code).replace(/[^A-Za-z0-9]/g, '').toUpperCase();
             const matchedUser = list.find(u => {
-                return (u.code && String(u.code).toUpperCase() === cleanCode) || 
-                       (u.serial_id && String(u.serial_id).toUpperCase() === cleanCode) ||
-                       (u.trainerCode && String(u.trainerCode).toUpperCase() === cleanCode) ||
-                       (u.user_code && String(u.user_code).toUpperCase() === cleanCode) ||
+                const uCode = (u.code || u.serial_id || u.trainerCode || u.user_code || "");
+                return (String(uCode).toUpperCase() === cleanCode) || 
                        (u.id && String(u.id) === String(scan.id));
             });
             if (matchedUser) {
                 targetId = matchedUser.id;
-                scan.name = matchedUser.name; // Enrich name if missing
+                if (!scan.name) scan.name = matchedUser.name;
             }
         }
 
         if (!targetId) return;
 
-        const now = new Date(scan.timestamp || Date.now());
-        const dateKey = now.toLocaleDateString('en-CA');
-        let logKey = (scan.type === 'STUDENT' ? 'student_attendance' : (scan.type === 'TRAINER' ? 'trainer_logs' : 'employee_logs'));
+        const timestamp = scan.serverTimestamp || scan.timestamp || Date.now();
+        const now = new Date(timestamp);
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const dateKey = `${year}-${month}-${day}`;
+        
+        // 🔄 v9.0: Cross-type correction – if scan.type is wrong (e.g. EMPLOYEE logged as STUDENT),
+        // try to correct it by searching all lists
+        if (typeof Storage !== 'undefined') {
+            const students = Storage.get('students') || [];
+            const trainers = Storage.get('trainers') || [];
+            const users = Storage.get('users') || [];
 
-        if (scan.type === 'STUDENT') {
-            const att = (typeof Storage !== 'undefined') ? (Storage.get('attendance') || {}) : {};
-            const nKey = `${dateKey}_global`;
-            if (!att[nKey]) att[nKey] = {};
-            if (!att[nKey][targetId]) att[nKey][targetId] = {};
-            att[nKey][targetId].time = scan.time;
-            if (typeof Storage !== 'undefined') Storage.save('attendance', att);
-        } else {
-            const logs = (typeof Storage !== 'undefined') ? (Storage.get(logKey) || {}) : {};
-            if (!logs[dateKey]) logs[dateKey] = {};
-            if (!logs[dateKey][targetId]) logs[dateKey][targetId] = {};
-            const uLog = logs[dateKey][targetId];
-            uLog.name = scan.name;
-            uLog.type = scan.type;
-            if (!uLog.in) uLog.in = scan.time; else uLog.out = scan.time;
-            if (typeof Storage !== 'undefined') Storage.save(logKey, logs);
+            const findInList = (list) => list.find(u => String(u.id) === String(targetId));
+            const inStudents = findInList(students);
+            const inTrainers = findInList(trainers);
+            const inUsers    = findInList(users);
+
+            // Enrich name if missing
+            const resolvedUser = inStudents || inTrainers || inUsers;
+            if (resolvedUser && !scan.name) scan.name = resolvedUser.name;
+
+            // Correct the type if it doesn't match where the user actually is
+            if (!inStudents && scan.type === 'STUDENT') {
+                if (inTrainers) { scan.type = 'TRAINER'; console.log('🔄 Type corrected: STUDENT → TRAINER for', scan.name); }
+                else if (inUsers) { scan.type = 'EMPLOYEE'; console.log('🔄 Type corrected: STUDENT → EMPLOYEE for', scan.name); }
+            }
         }
-        if (onSyncCallback) onSyncCallback(scan);
+
+        try {
+            if (scan.type === 'STUDENT') {
+                const att = Storage.get('attendance') || {};
+                const nKey = `${dateKey}_global`;
+                if (!att[nKey]) att[nKey] = {};
+                if (!att[nKey][targetId]) att[nKey][targetId] = {};
+                
+                // Record check-in or check-out depending on state
+                if (!att[nKey][targetId].time) {
+                    att[nKey][targetId].time = scan.time;
+                } else {
+                    att[nKey][targetId].out = scan.time;
+                }
+                
+                await Storage.save('attendance', att);
+            } else {
+                const logKey = (scan.type === 'TRAINER' ? 'trainer_logs' : 'employee_logs');
+                const logs = Storage.get(logKey) || {};
+                if (!logs[dateKey]) logs[dateKey] = {};
+                if (!logs[dateKey][targetId]) logs[dateKey][targetId] = {};
+                
+                const uLog = logs[dateKey][targetId];
+                uLog.name = scan.name || uLog.name;
+                uLog.type = scan.type;
+                if (scan.gps) {
+                    if (!uLog.in) uLog.gpsIn = scan.gps; else uLog.gpsOut = scan.gps;
+                }
+                
+                if (!uLog.in) uLog.in = scan.time; else uLog.out = scan.time;
+                
+                await Storage.save(logKey, logs);
+            }
+            
+            if (onSyncCallback) onSyncCallback(scan);
+            
+            // Broadcast to all tabs
+            if (window.BroadcastChannel) {
+                new BroadcastChannel('edumaster_sync').postMessage({ type: 'CLOUD_SCAN_RECEIVED', scan });
+            }
+        } catch (e) {
+            console.error("❌ Cloud Sync Save Error:", e);
+        }
     },
 
     // 📤 FULL DATABASE PUSH (Hyper-Granular v8.0)

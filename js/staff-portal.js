@@ -138,7 +138,7 @@ class StaffPortal {
             return;
         }
 
-        // Auto-detect type if prefix is present
+        // Auto-detect type if prefix is present (Latin prefix hints)
         let q = userId.toLowerCase();
         if (q.startsWith('s')) { this.typeSelect.value = 'STUDENT'; }
         else if (q.startsWith('t')) { this.typeSelect.value = 'TRAINER'; }
@@ -156,11 +156,29 @@ class StaffPortal {
         if (!this.currentUser) {
             const trainers = Storage.get('trainers') || [];
             const students = Storage.get('students') || [];
-            this.showMsg(`🚨 كود غير مسجل! اضغط (تحديث السحاب) بالأسفل. [stats: T=${trainers.length}, S=${students.length}]`, "#f43f5e");
+            const users = Storage.get('users') || [];
+            this.showMsg(`🚨 كود غير مسجل! اضغط (تحديث السحاب) بالأسفل. [T=${trainers.length}, S=${students.length}, E=${users.length}]`, "#f43f5e");
             return;
         }
 
-        this.showMsg(`مرحباً ${this.currentUser.name}، يمكنك الضغط على 'دخول يدوي' الآن أو توجيه الكاميرا.`, "#10b981");
+        // ✅ v9.0: Auto-correct type based on WHICH list the user was actually found in
+        // This fixes the bug where Arabic-named employees are mistakenly logged as students
+        const studentsList = Storage.get('students') || [];
+        const trainersList = Storage.get('trainers') || [];
+        const isStudent = studentsList.some(s => String(s.id) === String(this.currentUser.id));
+        const isTrainer = trainersList.some(t => String(t.id) === String(this.currentUser.id));
+
+        if (isStudent) {
+            this.typeSelect.value = 'STUDENT';
+        } else if (isTrainer) {
+            this.typeSelect.value = 'TRAINER';
+        } else {
+            this.typeSelect.value = 'EMPLOYEE';
+        }
+
+        console.log(`✅ Auto-Correct Type: ${this.typeSelect.value} for ${this.currentUser.name}`);
+
+        this.showMsg(`مرحباً ${this.currentUser.name} (${this.typeSelect.value === 'STUDENT' ? 'طالب' : this.typeSelect.value === 'TRAINER' ? 'محاضر' : 'موظف'})، يمكنك الضغط على 'دخول يدوي' أو توجيه الكاميرا.`, "#10b981");
         this.showManualOption();
 
         // Start GPS + Camera

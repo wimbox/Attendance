@@ -72,15 +72,10 @@
         }
 
         /* Grouped view specific */
-        .neuro-table th {
-            white-space: nowrap;
-        }
-        .neuro-table td {
-            color: var(--text-main);
-            vertical-align: middle;
-        }
+        .neuro-table th { white-space: nowrap; }
+        .neuro-table td { color: var(--text-main); vertical-align: middle; }
 
-        /* Dark Mode Specific Overrides */
+        /* Dark Mode Overrides */
         body.dark-mode .log-container {
             background: rgba(15, 23, 42, 0.6);
             backdrop-filter: blur(10px);
@@ -89,19 +84,17 @@
             color: #cbd5e1;
             background: transparent !important;
         }
-        body.dark-mode .type-student { background: rgba(22, 101, 52, 0.2); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); }
-        body.dark-mode .type-trainer { background: rgba(30, 64, 175, 0.2); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.3); }
-        body.dark-mode .type-employee { background: rgba(133, 77, 14, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
+        body.dark-mode .type-student  { background: rgba(22, 101, 52, 0.2);  color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); }
+        body.dark-mode .type-trainer  { background: rgba(30, 64, 175, 0.2);  color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.3); }
+        body.dark-mode .type-employee { background: rgba(133, 77, 14, 0.2);  color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
         body.dark-mode .app-btn-today { background: var(--accent-teal); color: #000; }
-        body.dark-mode .view-toggle-btn {
-            border-color: var(--accent-teal);
-        }
+        body.dark-mode .view-toggle-btn { border-color: var(--accent-teal); }
     </style>
 </head>
 <body class="dashboard-body">
     <div class="wrapper">
         <aside class="sidebar"></aside>
-        
+
         <main class="main-content">
             <div class="content-container">
                 <header class="top-bar">
@@ -113,11 +106,14 @@
                         <button class="view-toggle-btn" id="view-toggle-btn" title="تبديل طريقة العرض">
                             <i class="fa-solid fa-list"></i> عرض تفصيلي
                         </button>
-                        <button class="app-btn-today" onclick="window.AttendanceLogs.resetToToday()" title="العودة لتاريخ اليوم">
+                        <button class="app-btn-today" onclick="window.AttendanceLogs && window.AttendanceLogs.resetToToday()" title="العودة لتاريخ اليوم">
                             <i class="fa-solid fa-calendar-day"></i> اليوم
                         </button>
                         <input type="date" id="log-date" class="app-input" style="width: 160px;">
-                        <button class="app-btn-primary" onclick="window.exportToExcel()">
+                        <button class="app-btn-secondary" onclick="window.AttendanceLogs && window.AttendanceLogs.pullFromCloud()" title="تزامن مع السحابة" style="background: #6366f1; color: #fff;">
+                            <i class="fa-solid fa-cloud-arrow-down"></i> تحديث السحابة
+                        </button>
+                        <button class="app-btn-primary" onclick="window.exportToExcel && window.exportToExcel()">
                             <i class="fa-solid fa-file-excel"></i> تصدير إكسيل
                         </button>
                     </div>
@@ -154,7 +150,7 @@
                                 <th>التاريخ</th>
                                 <th>الاسم</th>
                                 <th>الفئة</th>
-                                <th>وقت الحضور</th>
+                                <th>وقت الحضور ▼</th>
                                 <th>وقت الانصراف</th>
                                 <th>المدة</th>
                                 <th>الحالة</th>
@@ -170,20 +166,19 @@
         </main>
     </div>
 
-    <!-- Firebase Cloud Sync (Required for Real-Time Mobile → PC Sync) -->
+    <!-- Firebase Cloud Sync (v9.0 - Single Load) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-    <script src="../js/firebase-config.js?v=7.4"></script>
+    <script src="../js/firebase-config.js?v=9.0"></script>
 
     <!-- Auditory Feedback Assets -->
     <audio id="sound-success" src="https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3"></audio>
     <audio id="sound-error" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"></audio>
 
-    <script src="../js/core.js?v=7.4"></script>
-    <script src="../js/permissions.js?v=7.4"></script>
-    <script src="../js/ui-core.js?v=7.4"></script>
-    <script src="../js/audio-core.js?v=7.4"></script>
-    <script src="../js/attendance-logs.js?v=7.4"></script>
+    <script src="../js/core.js?v=9.0"></script>
+    <script src="../js/permissions.js?v=9.0"></script>
+    <script src="../js/ui-core.js?v=9.0"></script>
+    <script src="../js/audio-core.js?v=9.0"></script>
+    <script src="../js/attendance-logs.js?v=9.0"></script>
 </body>
 </html>
-

@@ -14,8 +14,18 @@ class AttendanceLogsController {
     }
 
     init() {
-        const today = new Date().toLocaleDateString('en-CA'); 
+        // Safe YYYY-MM-DD getter
+        const getToday = () => {
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const today = getToday();
         this.dateInput.value = today; // ⚡ FIX: Default to Today
+        console.log("📅 Logs initialized to:", today);
         this.dateInput.addEventListener('change', () => this.render());
         
         // 📡 Cloud Sync: Listen for mobile scans while this page is open
@@ -39,6 +49,17 @@ class AttendanceLogsController {
             });
         }
 
+        // 🏎️ Real-Time Tab Sync (v8.2)
+        if (window.BroadcastChannel) {
+            const bc = new BroadcastChannel('edumaster_sync');
+            bc.onmessage = (ev) => {
+                if (['CLOUD_SCAN_RECEIVED', 'STUDENT_ADDED', 'STUDENT_UPDATED'].includes(ev.data.type)) {
+                    console.log("🚀 Tab Sync Refreshing Logs...");
+                    this.render();
+                }
+            };
+        }
+
         // View toggle button
         const toggleBtn = document.getElementById('view-toggle-btn');
         if (toggleBtn) {
@@ -54,11 +75,44 @@ class AttendanceLogsController {
         this.render();
     }
 
+    async pullFromCloud() {
+        if (!window.UI || !window.Cloud || !window.Cloud.pullTodayScans) return;
+        
+        UI.notify('info', 'جارٍ مزامنة البيانات من السحابة...');
+        try {
+            const scans = await window.Cloud.pullTodayScans();
+            if (scans && scans.length > 0) {
+                console.log(`📡 Recovering ${scans.length} scans from cloud...`);
+                
+                // Sort by time ascending so we don't mess up in/out order
+                scans.sort((a,b) => (a.serverTimestamp || 0) - (b.serverTimestamp || 0));
+
+                for (const scan of scans) {
+                    await window.Cloud._handleCloudScan(scan);
+                }
+                
+                this.render();
+                UI.notify('success', `تم استرجاع ${scans.length} سجل من السحابة بنجاح ✅`);
+            } else {
+                UI.notify('warning', 'لا توجد سجلات سحابية متاحة حالياً');
+            }
+        } catch (err) {
+            console.error(err);
+            UI.notify('danger', 'فشل في الاتصال بالسحابة');
+        }
+    }
+
     resetToToday() {
-        const today = new Date().toLocaleDateString('en-CA');
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const today = `${year}-${month}-${day}`;
+        
         this.dateInput.value = today;
+        console.log("📅 Resetting to Today:", today);
         this.render();
-        if (window.Toast) Toast.show('تمت العودة لتاريخ اليوم', 'info');
+        if (window.UI && window.UI.notify) window.UI.notify('info', 'تمت العودة لتاريخ اليوم');
     }
 
     // ─── Time Helpers ──────────────────────────────────────────
@@ -103,7 +157,7 @@ class AttendanceLogsController {
         const students = Storage.get('students') || [];
         const trainers = Storage.get('trainers') || [];
         const users = Storage.get('users') || [];
-        const activeBranch = String(window.Permissions?.getActiveBranchId() || 'miami');
+        const activeBranch = window.Permissions?.getActiveBranchId();
         const events = [];
 
         // 1. Students
@@ -116,7 +170,8 @@ class AttendanceLogsController {
 
                 Object.entries(att[key]).forEach(([sid, data]) => {
                     const student = students.find(s => String(s.id) === String(sid));
-                    if (student && student.branch_id && String(student.branch_id) !== activeBranch) return; // 🛡️ Filter by Branch
+                    // 🛡️ Filter by Branch (Only if specific branch is selected)
+                    if (activeBranch !== null && student && student.branch_id && String(student.branch_id) !== String(activeBranch)) return;
                     if (data.time) events.push({
                         id: sid,
                         time: data.time || '--:--',
@@ -144,7 +199,8 @@ class AttendanceLogsController {
         if (eLogs[dateKey]) {
             Object.entries(eLogs[dateKey]).forEach(([uid, data]) => {
                 const user = users.find(u => String(u.id) === String(uid));
-                if (user && user.branch_id && String(user.branch_id) !== activeBranch) return; // 🛡️ Filter by Branch
+                // 🛡️ Filter by Branch
+                if (activeBranch !== null && user && user.branch_id && String(user.branch_id) !== String(activeBranch)) return;
                 const displayName = data.name || user?.name || uid;
                 const displayCat = data.type || 'EMPLOYEE';
                 if (data.in) events.push({ id: uid, time: data.in, name: displayName, category: displayCat, status: 'تسجيل دخول (وردية)', code: user?.code || '--', gps: data.gpsIn, meta: { storageKey: 'employee_logs', date: dateKey, userId: uid } });
@@ -157,7 +213,8 @@ class AttendanceLogsController {
         if (tLogs[dateKey]) {
             Object.entries(tLogs[dateKey]).forEach(([tid, data]) => {
                 const tr = trainers.find(t => String(t.id) === String(tid));
-                if (tr && tr.branch_id && String(tr.branch_id) !== activeBranch) return; // 🛡️ Filter by Branch
+                // 🛡️ Filter by Branch
+                if (activeBranch !== null && tr && tr.branch_id && String(tr.branch_id) !== String(activeBranch)) return;
                 const displayName = data.name || tr?.name || tid;
                 const displayCat = data.type || 'TRAINER';
                 if (data.in)  events.push({ id: tid, time: data.in,  name: displayName, category: displayCat, status: 'حضور محاضرات',   code: tr?.code || '--', gps: data.gpsIn, meta: { storageKey: 'trainer_logs', date: dateKey, userId: tid } });
@@ -173,7 +230,7 @@ class AttendanceLogsController {
         const students = Storage.get('students') || [];
         const trainers = Storage.get('trainers') || [];
         const users = Storage.get('users') || [];
-        const activeBranch = String(window.Permissions?.getActiveBranchId() || 'miami');
+        const activeBranch = window.Permissions?.getActiveBranchId();
         const grouped = [];
 
         // 1. Employees
@@ -181,7 +238,8 @@ class AttendanceLogsController {
         if (eLogs[dateKey]) {
             Object.entries(eLogs[dateKey]).forEach(([uid, data]) => {
                 const user = users.find(u => String(u.id) === String(uid));
-                if (user && user.branch_id && String(user.branch_id) !== activeBranch) return; // 🛡️ Filter by Branch
+                // 🛡️ Filter by Branch
+                if (activeBranch !== null && user && user.branch_id && String(user.branch_id) !== String(activeBranch)) return;
                 grouped.push({
                     id: uid,
                     name: data.name || user?.name || uid,
@@ -203,7 +261,8 @@ class AttendanceLogsController {
         if (tLogs[dateKey]) {
             Object.entries(tLogs[dateKey]).forEach(([tid, data]) => {
                 const tr = trainers.find(t => String(t.id) === String(tid));
-                if (tr && tr.branch_id && String(tr.branch_id) !== activeBranch) return; // 🛡️ Filter by Branch
+                // 🛡️ Filter by Branch
+                if (activeBranch !== null && tr && tr.branch_id && String(tr.branch_id) !== String(activeBranch)) return;
                 grouped.push({
                     id: tid,
                     name: data.name || tr?.name || tid,
@@ -230,18 +289,51 @@ class AttendanceLogsController {
                 Object.entries(att[key]).forEach(([sid, data]) => {
                     if (!studentMap[sid]) {
                         const student = students.find(s => String(s.id) === String(sid));
-                        studentMap[sid] = {
-                            id: sid,
-                            name: student ? student.name : `طالب #${sid}`,
-                            category: 'STUDENT',
-                            code: student ? student.code : '--',
-                            timeIn: data.time || '--:--',
-                            timeOut: data.out || '--',
-                            duration: this._calculateDuration(data.time, data.out),
-                            status: `حاضر (${groupName})`,
-                            groups: [groupName],
-                            meta: { storageKey: key, userId: sid }
-                        };
+
+                        // 🔄 v9.0 Cross-type fix: check if this ID is actually a trainer or employee
+                        const trainer = !student ? trainers.find(t => String(t.id) === String(sid)) : null;
+                        const user    = !student && !trainer ? users.find(u => String(u.id) === String(sid)) : null;
+
+                        if (trainer) {
+                            // Mis-logged trainer – move to trainer bucket
+                            grouped.push({
+                                id: sid,
+                                name: data.name || trainer.name || sid,
+                                category: 'TRAINER',
+                                code: trainer.code || '--',
+                                timeIn: data.time || '--:--',
+                                timeOut: data.out || '--',
+                                duration: this._calculateDuration(data.time, data.out),
+                                status: 'حضور',
+                                meta: { storageKey: key, userId: sid }
+                            });
+                        } else if (user) {
+                            // Mis-logged employee – move to employee bucket
+                            grouped.push({
+                                id: sid,
+                                name: data.name || user.name || sid,
+                                category: 'EMPLOYEE',
+                                code: user.code || '--',
+                                timeIn: data.time || '--:--',
+                                timeOut: data.out || '--',
+                                duration: this._calculateDuration(data.time, data.out),
+                                status: 'حضور',
+                                meta: { storageKey: key, userId: sid }
+                            });
+                        } else {
+                            studentMap[sid] = {
+                                id: sid,
+                                name: student ? student.name : (data.name || `طالب #${sid}`),
+                                category: 'STUDENT',
+                                code: student ? student.code : '--',
+                                timeIn: data.time || '--:--',
+                                timeOut: data.out || '--',
+                                duration: this._calculateDuration(data.time, data.out),
+                                status: `حاضر (${groupName})`,
+                                groups: [groupName],
+                                meta: { storageKey: key, userId: sid }
+                            };
+                        }
                     } else {
                         studentMap[sid].groups.push(groupName);
                         studentMap[sid].status = `حاضر (${studentMap[sid].groups.join(' + ')})`;
