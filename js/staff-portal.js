@@ -13,7 +13,7 @@ class StaffPortal {
         this.idInput = document.getElementById('user-id');
         this.toggleBtn = document.getElementById('toggle-scan');
         this.scannerBox = document.getElementById('scanner-box');
-        this.statusMsg = document.getElementById('status-display');
+        this.statusMsg = document.getElementById('status-banner') || document.getElementById('status-display');
         this.rememberCheckbox = document.getElementById('remember-me');
         this.currentLocation = null;
         
@@ -439,25 +439,53 @@ class StaffPortal {
 
             const actualCode = this.currentUser.serial_id || this.currentUser.code || this.currentUser.trainerCode || this.currentUser.user_code || this.currentUser.id;
 
-            const pushTask = window.Cloud.pushScan(branchId, {
-                ...event,
-                id: this.currentUser.id,
-                name: this.currentUser.name,
-                type: this.typeSelect.value,
-                code: actualCode
-            });
+            // ⏱️ Safety net: Show success after 8s no matter what
+            let successShown = false;
+            const safetyTimer = setTimeout(() => {
+                if (!successShown) {
+                    successShown = true;
+                    console.warn("⚠️ Cloud sync timeout - showing success locally");
+                    this.showSuccess(successTitle, successMsg);
+                }
+            }, 8000);
+
+            let pushTask;
+            try {
+                pushTask = window.Cloud.pushScan(branchId, {
+                    ...event,
+                    id: this.currentUser.id,
+                    name: this.currentUser.name,
+                    type: this.typeSelect.value,
+                    code: actualCode
+                });
+            } catch(syncErr) {
+                console.error("❌ Cloud.pushScan threw:", syncErr);
+                clearTimeout(safetyTimer);
+                successShown = true;
+                this.showSuccess(successTitle, successMsg);
+                return;
+            }
 
             if (pushTask && pushTask.then) {
                 pushTask.then(() => {
-                    console.log("🔥 Cloud Sync Verified!");
-                    this.showSuccess(successTitle, successMsg);
+                    clearTimeout(safetyTimer);
+                    if (!successShown) {
+                        successShown = true;
+                        console.log("🔥 Cloud Sync Verified!");
+                        this.showSuccess(successTitle, successMsg);
+                    }
                 }).catch(e => {
-                    console.error("❌ Cloud Sync Failed:", e);
-                    this.showMsg("تم الحفظ محلياً (فشل المزامنة)", "#ef4444");
-                    // Still show success screen after a bit so they can proceed
-                    setTimeout(() => this.showSuccess(successTitle, successMsg), 1500);
+                    clearTimeout(safetyTimer);
+                    if (!successShown) {
+                        successShown = true;
+                        console.error("❌ Cloud Sync Failed:", e);
+                        this.showMsg("تم الحفظ محلياً (فشل المزامنة)", "#ef4444");
+                        setTimeout(() => this.showSuccess(successTitle, successMsg), 1500);
+                    }
                 });
             } else {
+                clearTimeout(safetyTimer);
+                successShown = true;
                 this.showSuccess(successTitle, successMsg);
             }
         } else {
@@ -466,10 +494,29 @@ class StaffPortal {
     }
 
     showMsg(txt, color) {
-        this.statusMsg.style.display = 'block';
-        this.statusMsg.style.background = color + "22";
-        this.statusMsg.style.color = color;
-        this.statusMsg.textContent = txt;
+        if (!this.statusMsg) return;
+        // Support both new banner (class-based show) and old display:block pattern
+        if (this.statusMsg.id === 'status-banner') {
+            this.statusMsg.style.background = color + '18';
+            this.statusMsg.style.color = color;
+            this.statusMsg.style.borderColor = color + '33';
+            this.statusMsg.textContent = txt;
+            this.statusMsg.classList.add('visible');
+        } else {
+            this.statusMsg.style.display = 'block';
+            this.statusMsg.style.background = color + '22';
+            this.statusMsg.style.color = color;
+            this.statusMsg.textContent = txt;
+        }
+    }
+
+    hideMsg() {
+        if (!this.statusMsg) return;
+        if (this.statusMsg.id === 'status-banner') {
+            this.statusMsg.classList.remove('visible');
+        } else {
+            this.statusMsg.style.display = 'none';
+        }
     }
 
     showSuccess(title, msg) {

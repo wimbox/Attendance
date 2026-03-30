@@ -5,338 +5,316 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>بوابة الحضور الذكية | EduMaster</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/html5-qrcode"></script> 
-    
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
     <style>
         :root {
             --primary: #6366f1;
-            --primary-light: #818cf8;
             --accent: #10b981;
             --danger: #ef4444;
-            --warning: #f59e0b;
             --bg: #0f121d;
-            --card-bg: #1e2536;
-            --input-bg: #f8fafc;
+            --card-bg: #1a2235;
+            --input-bg: #f1f5f9;
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
-            --header-grad: linear-gradient(135deg, #6366f1, #4f46e5);
-            --header-height: 180px;
+            --btn-bar-h: 160px;
         }
 
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
 
-        body {
-            margin: 0; padding: 0;
+        html, body {
+            height: 100%;
             font-family: 'Cairo', 'Outfit', sans-serif;
             background: var(--bg);
             color: var(--text-main);
             overflow-x: hidden;
-            display: flex; flex-direction: column;
-            min-height: 100vh;
         }
 
-        /* ─── Header Section ─── */
+        /* ─── Header ─── */
         header {
-            padding: 40px 20px 60px;
-            background: linear-gradient(to bottom, #818cf8, #6366f1);
-            border-bottom-right-radius: 60px;
-            border-bottom-left-radius: 60px;
+            padding: 30px 20px 50px;
+            background: linear-gradient(160deg, #818cf8, #5855eb);
+            border-bottom-right-radius: 50px;
+            border-bottom-left-radius: 50px;
             text-align: center;
-            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
-            position: relative;
-            z-index: 10;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.5);
+            position: relative; z-index: 10;
         }
 
-        .header-title {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: #ffffff;
-            opacity: 0.95;
-            margin-bottom: 20px;
-            display: block;
+        .header-sub {
+            font-size: 1rem; font-weight: 700;
+            color: rgba(255,255,255,0.85);
+            margin-bottom: 16px; display: block;
         }
 
         .conn-badge {
             display: inline-flex; align-items: center; gap: 10px;
-            padding: 10px 20px; border-radius: 50px;
-            font-size: 0.95rem; font-weight: 900;
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 9px 20px; border-radius: 50px;
+            font-size: 0.9rem; font-weight: 900;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.25);
             color: white;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
         }
 
         .dot-pulse {
-            width: 10px; height: 10px; border-radius: 50%; display: block;
+            width: 9px; height: 9px; border-radius: 50%; display: block; flex-shrink: 0;
             position: relative;
         }
         .dot-pulse::after {
             content: ''; position: absolute; inset: -4px; border-radius: 50%;
-            background: inherit; opacity: 0.5; animation: pulse 1.5s infinite;
+            background: inherit; opacity: 0.4; animation: ripple 1.6s infinite;
         }
         .dot-green { background: #10b981; }
-        .dot-red { background: #ef4444; }
-        .dot-orange { background: #f59e0b; }
-
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 0.5; }
-            100% { transform: scale(3); opacity: 0; }
+        .dot-red   { background: #ef4444; }
+        .dot-orange{ background: #f59e0b; }
+        @keyframes ripple {
+            0%   { transform: scale(1);   opacity: 0.4; }
+            100% { transform: scale(3.5); opacity: 0; }
         }
 
-        /* ─── Sync Status Banner ─── */
-        .sync-banner-container {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            margin-top: -30px;
-            position: relative;
-            z-index: 15;
-            padding: 0 20px;
-        }
-
-        .sync-banner {
-            background: #26211c;
-            color: #f59e0b;
-            padding: 14px 40px;
-            border-radius: 12px;
-            font-weight: 800;
-            font-size: 1.1rem;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-            border-bottom: 2px solid #3d352b;
-            display: none; /* Controlled by Portal.js */
-            min-width: 250px;
+        /* ─── Status Banner (HIDDEN by default, JS shows it) ─── */
+        #status-banner {
+            visibility: hidden;   /* keeps space but invisible */
+            opacity: 0;
+            pointer-events: none;
+            position: relative; z-index: 20;
+            margin: -28px auto 0;
+            width: calc(100% - 40px); max-width: 460px;
+            padding: 14px 24px;
+            border-radius: 14px;
+            font-weight: 800; font-size: 1rem;
             text-align: center;
+            background: #1e1a10;
+            color: #f59e0b;
+            border: 1px solid rgba(245,158,11,0.2);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            transition: opacity 0.25s, visibility 0.25s;
+        }
+        #status-banner.visible {
+            visibility: visible;
+            opacity: 1;
+            pointer-events: auto;
         }
 
-        /* ─── Main Form ─── */
-        main { flex: 1; padding: 40px 20px; max-width: 500px; margin: 0 auto; width: 100%; }
+        /* ─── Scrollable body area ─── */
+        .page-body {
+            padding: 20px 20px calc(var(--btn-bar-h) + 20px);
+            max-width: 500px; margin: 0 auto; width: 100%;
+        }
 
+        /* ─── Card ─── */
         .auth-card {
             background: var(--card-bg);
-            border-radius: 32px;
-            padding: 35px 25px;
-            border: 1px solid rgba(255,255,255,0.03);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-            margin-bottom: 25px;
+            border-radius: 28px;
+            padding: 28px 22px 22px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.04);
+            margin-top: 20px;
         }
 
-        .input-group { margin-bottom: 25px; text-align: right; }
-        label { display: block; margin-bottom: 12px; font-weight: 800; color: var(--text-muted); font-size: 0.95rem; }
-        
-        select {
-            width: 100%; padding: 18px 20px;
-            background: rgba(15, 21, 38, 0.7);
-            border: 2.5px solid rgba(255,255,255,0.08);
-            border-radius: 20px;
-            color: #fff; font-family: inherit; font-size: 1.2rem; font-weight: 900;
-            box-sizing: border-box; transition: all 0.3s;
-            appearance: none;
-            cursor: pointer;
+        /* ─── Inputs ─── */
+        .field-label {
+            display: block; margin-bottom: 10px;
+            font-weight: 800; font-size: 0.9rem; color: var(--text-muted);
         }
+        .field-wrap { margin-bottom: 20px; }
+
+        select {
+            width: 100%; padding: 16px 18px;
+            background: rgba(10,14,28,0.7);
+            border: 2px solid rgba(255,255,255,0.07);
+            border-radius: 18px;
+            color: #fff; font-family: inherit; font-size: 1.1rem; font-weight: 900;
+            appearance: none; cursor: pointer; transition: border 0.3s;
+        }
+        select:focus { border-color: var(--primary); outline: none; }
 
         #user-id {
-            width: 100%; padding: 22px 25px;
+            width: 100%;
+            padding: 20px;
             background: var(--input-bg);
-            border: none;
-            border-radius: 20px;
-            color: #1e293b; font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800;
-            box-sizing: border-box; transition: all 0.3s;
-            text-align: center;
-            box-shadow: inset 0 2px 10px rgba(0,0,0,0.05);
+            border: none; border-radius: 18px;
+            color: #1e293b;
+            font-family: 'Outfit', sans-serif; font-size: 1.7rem; font-weight: 800;
+            text-align: center; letter-spacing: 1px;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.06);
         }
 
-        select:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2); }
-
-        /* ─── Utility Options ─── */
+        /* ─── Utility row ─── */
         .util-row {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 35px;
-            padding: 0 5px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-top: 12px; padding: 0 4px;
         }
-
-        .remember-me-label {
-            display: flex; align-items: center; gap: 10px;
-            color: var(--text-muted); font-weight: 700; font-size: 0.95rem;
-            cursor: pointer;
+        .remember-label {
+            display: flex; align-items: center; gap: 8px;
+            color: var(--text-muted); font-weight: 700; font-size: 0.85rem; cursor: pointer;
         }
+        .remember-label input { accent-color: var(--primary); width: 18px; height: 18px; }
 
-        .remember-me-label input {
-            width: 20px; height: 20px; border-radius: 6px; accent-color: var(--primary);
-        }
-
+        .util-actions { display: flex; gap: 18px; }
         .util-btn {
-            background: none; border: none; font-size: 1rem; font-weight: 900;
-            cursor: pointer; display: flex; align-items: center; gap: 8px;
-            transition: transform 0.2s;
+            background: none; border: none; font-size: 0.82rem; font-weight: 900;
+            cursor: pointer; display: flex; align-items: center; gap: 6px;
+            transition: transform 0.15s;
         }
-        .util-btn:active { transform: scale(0.95); }
+        .util-btn:active { transform: scale(0.93); }
         .util-btn.reset { color: var(--danger); }
-        .util-btn.sync { color: var(--accent); }
+        .util-btn.sync  { color: var(--accent); }
 
-        /* ─── Action Buttons ─── */
-        .btn-stack { display: flex; flex-direction: column; gap: 15px; }
-
-        .btn-action {
-            width: 100%; padding: 22px;
-            border: none;
-            border-radius: 20px;
-            font-weight: 900; font-size: 1.25rem;
-            cursor: pointer;
-            display: flex; align-items: center; justify-content: center; gap: 15px;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-        }
-
-        .btn-blue {
-            background: linear-gradient(135deg, #6366f1, #4f46e5);
-            color: white;
-            box-shadow: 0 8px 30px rgba(99, 102, 241, 0.4);
-        }
-
-        .btn-green {
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: white;
-            box-shadow: 0 8px 30px rgba(16, 185, 129, 0.4);
-            display: none; /* Initially hidden, shown by staff-portal.js */
-        }
-
-        .btn-action:active { transform: scale(0.97) translateY(2px); filter: brightness(0.9); }
-
-        /* ─── Scanner UI ─── */
+        /* ─── QR Scanner ─── */
         #scanner-box {
             display: none;
-            overflow: hidden;
-            border-radius: 24px;
-            margin-bottom: 25px;
-            background: #000;
-            border: 4px solid var(--primary);
-            box-shadow: 0 0 50px rgba(99, 102, 241, 0.3);
+            overflow: hidden; border-radius: 20px;
+            margin-bottom: 18px; background: #000;
+            border: 3px solid var(--primary);
+            box-shadow: 0 0 40px rgba(99,102,241,0.35);
         }
         #reader { width: 100%; }
 
-        /* ─── Status Info ─── */
-        #status-display {
-            padding: 20px; border-radius: 18px;
-            text-align: center; font-weight: 800; font-size: 1.1rem;
-            margin-bottom: 25px; display: none;
-            border: 1px solid rgba(255,255,255,0.05);
-            animation: slideUp 0.3s ease-out;
+        /* ─── Sticky Bottom Button Bar ─── */
+        .btn-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            z-index: 100;
+            background: var(--bg);
+            border-top: 1px solid rgba(255,255,255,0.05);
+            padding: 14px 20px env(safe-area-inset-bottom, 14px);
+            display: flex; flex-direction: column; gap: 12px;
+            max-width: 500px; margin: 0 auto;
         }
 
-        @keyframes slideUp { from {transform: translateY(15px); opacity: 0;} to {transform: translateY(0); opacity: 1;} }
+        .btn-main {
+            padding: 18px; border: none; border-radius: 18px;
+            font-weight: 900; font-size: 1.15rem;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 14px;
+            transition: transform 0.2s, filter 0.2s;
+        }
+        .btn-main:active { transform: scale(0.96); filter: brightness(0.88); }
 
-        /* ─── Success Screen ─── */
-        .success-overlay {
+        .btn-camera {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: white;
+            box-shadow: 0 6px 24px rgba(99,102,241,0.4);
+        }
+        .btn-manual {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            box-shadow: 0 6px 24px rgba(16,185,129,0.35);
+            display: none; /* JS shows this after auth */
+        }
+
+        /* ─── Success Overlay ─── */
+        #success-screen {
             position: fixed; inset: 0; background: var(--bg);
-            z-index: 2000; display: none;
+            z-index: 3000; display: none;
             flex-direction: column; align-items: center; justify-content: center;
             text-align: center; padding: 40px;
         }
 
         footer {
-            text-align: center; padding: 30px;
-            font-size: 0.9rem; color: var(--text-muted); font-weight: 700;
+            text-align: center; padding: 20px 20px 10px;
+            font-size: 0.8rem; color: #334155; font-weight: 700;
+        }
+
+        /* chevron for select */
+        .select-wrap { position: relative; }
+        .select-wrap .chev {
+            position: absolute; left: 18px; top: 50%; transform: translateY(-50%);
+            color: var(--primary); pointer-events: none; font-size: 0.85rem;
         }
     </style>
 </head>
 <body>
 
+    <!-- ─── Header ─── -->
     <header>
-        <span class="header-title">تسجيل الدخول: طلاب، محاضرين، موظفين</span>
-        <div id="connection-status" class="conn-badge">
-            <span class="dot-pulse dot-orange"></span>
-            <span id="conn-text">جاري التحقق من السحاب...</span>
+        <span class="header-sub">تسجيل الدخول: طلاب، محاضرين، موظفين</span>
+        <div class="conn-badge" id="connection-status">
+            <span class="dot-pulse dot-orange" id="conn-dot"></span>
+            <span id="conn-text">جاري التحقق...</span>
         </div>
     </header>
 
-    <div class="sync-banner-container">
-        <div id="status-display" class="sync-banner">جارٍ المزامنة السحابية...</div>
-    </div>
+    <!-- ─── Status Banner (hidden by default) ─── -->
+    <div id="status-banner"></div>
 
-    <main>
+    <!-- ─── Scrollable Content ─── -->
+    <div class="page-body">
         <div class="auth-card" id="main-ui">
-            <!-- QR Scanner Container -->
-            <div id="scanner-box">
-                <div id="reader"></div>
-            </div>
 
-            <div class="input-group">
-                <label>اختر صفتك</label>
-                <div style="position:relative;">
+            <!-- QR Scanner -->
+            <div id="scanner-box"><div id="reader"></div></div>
+
+            <!-- Role Selector -->
+            <div class="field-wrap">
+                <label class="field-label">اختر صفتك</label>
+                <div class="select-wrap">
                     <select id="user-type">
                         <option value="STUDENT">طالب (S)</option>
                         <option value="TRAINER">محاضر / مدرب (T)</option>
                         <option value="EMPLOYEE">موظف إداري (E)</option>
                     </select>
-                    <i class="fa-solid fa-chevron-down" style="position:absolute; left:20px; top:50%; transform:translateY(-50%); color:var(--primary); pointer-events:none;"></i>
+                    <i class="fa-solid fa-chevron-down chev"></i>
                 </div>
             </div>
 
-            <div class="input-group">
-                <label>كود الهوية الخاص بك</label>
-                <input type="text" id="user-id" placeholder="ID: S-1xxx" spellcheck="false" autocomplete="off">
+            <!-- ID Input -->
+            <div class="field-wrap">
+                <label class="field-label">كود الهوية الخاص بك</label>
+                <input type="text" id="user-id" placeholder="S-1009" spellcheck="false" autocomplete="off" inputmode="text">
             </div>
 
+            <!-- Remember + Utils -->
             <div class="util-row">
-                <label class="remember-me-label">
+                <label class="remember-label">
                     <input type="checkbox" id="remember-me" checked>
                     تذكر بياناتي
                 </label>
-                
-                <div style="display: flex; gap: 20px;">
+                <div class="util-actions">
                     <button class="util-btn reset" onclick="window.Portal && window.Portal.resetData()">
-                        <i class="fa-solid fa-fire-flame-curved"></i> تصفير البيانات
+                        <i class="fa-solid fa-fire-flame-curved"></i> تصفير
                     </button>
                     <button class="util-btn sync" onclick="window.Portal && window.Portal.pullFullSync()">
-                        <i class="fa-solid fa-cloud-arrow-down"></i> تحديث البيانات سحابياً
+                        <i class="fa-solid fa-cloud-arrow-down"></i> تحديث سحابي
                     </button>
                 </div>
             </div>
-
-            <div class="btn-stack">
-                <button class="btn-action btn-blue" id="toggle-scan">
-                    <i class="fa-solid fa-qrcode" style="font-size:1.6rem;"></i>
-                    <span id="btn-text">فتح الكاميرا للمسح</span>
-                </button>
-                
-                <!-- This button is controlled by staff-portal.js showManualOption -->
-                <button class="btn-action btn-green" id="manual-checkin-btn" style="display: none;">
-                    <i class="fa-solid fa-hand-pointer" style="font-size:1.6rem;"></i>
-                    <span>تسجيل دخول يدوي (أوفلاين)</span>
-                </button>
-            </div>
         </div>
-    </main>
 
-    <div class="success-overlay" id="success-screen">
-        <div style="font-size: 6rem; color: var(--accent); margin-bottom: 30px;">
-            <i class="fa-solid fa-circle-check"></i>
-        </div>
-        <h2 style="font-size: 2.2rem; margin-bottom: 15px;">تم تسجيلك بنجاح!</h2>
-        <p id="success-done-msg" style="color: var(--text-muted); font-size: 1.2rem; line-height: 1.6; max-width: 300px;"></p>
-        <button class="btn-action btn-blue" style="margin-top: 40px; width: auto; padding: 18px 60px;" onclick="location.reload()">
-            رجوع للرئيسية
+        <footer>&copy; 2026 EduMaster Pro — v4.1</footer>
+    </div>
+
+    <!-- ─── Sticky Button Bar (Always Visible) ─── -->
+    <div class="btn-bar">
+        <button class="btn-main btn-camera" id="toggle-scan">
+            <i class="fa-solid fa-qrcode" style="font-size:1.5rem;"></i>
+            <span id="btn-text">فتح الكاميرا للمسح</span>
+        </button>
+        <button class="btn-main btn-manual" id="manual-checkin-btn">
+            <i class="fa-solid fa-hand-pointer" style="font-size:1.5rem;"></i>
+            <span>تسجيل دخول يدوي (أوفلاين)</span>
         </button>
     </div>
 
-    <footer>
-        &copy; 2026 EduMaster Pro - v4.0 - جميع الحقوق محفوظة
-    </footer>
+    <!-- ─── Success Screen ─── -->
+    <div id="success-screen">
+        <div style="font-size:6rem; color:var(--accent); margin-bottom:25px;">
+            <i class="fa-solid fa-circle-check"></i>
+        </div>
+        <h2 style="font-size:2rem; margin-bottom:12px;">تم تسجيلك بنجاح!</h2>
+        <p id="success-done-msg" style="color:var(--text-muted); font-size:1.1rem; line-height:1.7; max-width:300px;"></p>
+        <button class="btn-main btn-camera" style="margin-top:40px; width:auto; padding:16px 50px;" onclick="location.reload()">
+            رجوع
+        </button>
+    </div>
 
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <script src="../js/firebase-config.js?v=8.0"></script>
-    
-    <script src="../js/core.js?v=8.0"></script>
-    <script src="../js/staff-portal.js?v=8.0"></script>
+    <script src="../js/firebase-config.js?v=9.0"></script>
+    <script src="../js/core.js?v=9.0"></script>
+    <script src="../js/staff-portal.js?v=9.0"></script>
 </body>
 </html>
-
