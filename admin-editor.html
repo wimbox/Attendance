@@ -411,6 +411,8 @@
                     الفروع والمالية</div>
                 <div class="nav-item" onclick="showSection('users', this)"><i class="fa-solid fa-users-gear"></i>
                     إدارة المستخدمين</div>
+                <div class="nav-item" onclick="showSection('security', this)" style="color: #6366f1; background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.1);"><i class="fa-solid fa-shield-halved"></i>
+                    الأمان والحساب</div>
                 <div class="nav-item" onclick="showSection('reset', this)" style="color: #ef4444;"><i class="fa-solid fa-triangle-exclamation"></i> تصفير
                     وصيانة</div>
                 <div class="nav-item log-nav" onclick="showSection('logs', this)" style="margin-top: 10px; color: #f59e0b; background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.1);"><i class="fa-solid fa-clock-rotate-left"></i>
@@ -749,6 +751,84 @@
                 </div>
             </div>
 
+            <!-- Section: Security & Account (NEW v4.1) -->
+            <div id="section-security" class="section">
+                <div class="card-header">
+                    <h3><i class="fa-solid fa-shield-halved"></i> الأمان والتحكم الرئيسي</h3>
+                </div>
+                
+                <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); margin-bottom: 25px; border: 1px solid rgba(0, 234, 255, 0.2);">
+                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+                        <div style="width: 50px; height: 50px; background: rgba(0, 234, 255, 0.1); color: #00eaff; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                            <i class="fa-solid fa-key"></i>
+                        </div>
+                        <div>
+                            <h4 style="margin: 0; font-size: 1.1rem; color: #00eaff;">كلمة المرور الرئيسية (Master Password)</h4>
+                            <p style="margin: 2px 0 0 0; font-size: 0.8rem; color: rgba(255,255,255,0.6);">هذه الكلمة تستخدم للدخول لإعدادات النظام واستعادة الحسابات.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid-2">
+                        <div class="input-group">
+                            <label style="color: rgba(255,255,255,0.8);">تحديث كلمة المرور</label>
+                            <div style="position: relative;">
+                                <input type="password" id="masterPassword" placeholder="اكتب الباسورد الجديد هنا..." 
+                                    style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: #fff; padding-left: 45px;">
+                                <i class="fa-solid fa-eye" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); cursor: pointer; color: rgba(255,255,255,0.4);" onclick="toggleInputType('masterPassword', this)"></i>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label style="color: rgba(255,255,255,0.8);">تأكيد الكلمة</label>
+                            <input type="password" id="masterPasswordConfirm" placeholder="أعد كتابة الباسورد للتأكيد..." 
+                                style="background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: #fff;">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="data-card" style="padding: 20px; background: #fff; border-radius: 18px; border: 1px solid #e2e8f0;">
+                         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; color: #6366f1;">
+                            <i class="fa-solid fa-envelope-circle-check" style="font-size: 1.3rem;"></i>
+                            <span style="font-weight: 800;">إيميل استعادة الحساب</span>
+                        </div>
+                        <div class="input-group">
+                            <label>البريد الإلكتروني (Gmail/Outlook)</label>
+                            <input type="email" id="recoveryEmail" placeholder="example@gmail.com" class="app-input">
+                        </div>
+                        <p style="font-size: 0.75rem; color: #64748b; font-weight: 600;">* سيتم إرسال أكواد الدخول والتحقق لهذا الإيميل عند طلب الاستعادة.</p>
+                    </div>
+
+                    <div class="data-card" style="padding: 20px; background: #fff; border-radius: 18px; border: 1px solid #e2e8f0;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; color: #10b981;">
+                           <i class="fa-brands fa-whatsapp" style="font-size: 1.5rem;"></i>
+                           <span style="font-weight: 800;">رابط واتساب الإدارة</span>
+                       </div>
+                       <div class="input-group">
+                           <label>رقم واتساب المالك (بالكود الدولي)</label>
+                           <input type="text" id="adminWhatsapp" placeholder="201012345678" class="app-input">
+                       </div>
+                       <p style="font-size: 0.75rem; color: #64748b; font-weight: 600;">* يستخدم للتواصل السريع مع الدعم الفني أو تلقي إشعارات الحماية.</p>
+                   </div>
+                </div>
+
+                <div class="theme-section-divider" style="border-right-color: #ef4444; color: #ef4444; background: #fff1f2; margin-top: 25px;">
+                    <span>🚨 مفتاح الطوارئ الفريد (Master Recovery Key)</span>
+                </div>
+                <div style="background: #fff1f2; border: 1px solid #fecaca; padding: 25px; border-radius: 20px; text-align: center;">
+                    <p style="color: #991b1b; font-weight: 700; font-size: 0.95rem; margin-bottom: 20px;">
+                        هذا الكود هو "المنقذ الأخير".. إذا فقدت الباسورد الرئيسي والإيميل، هذا الكود سيفتح لك النظام فوراً.
+                        <br><span style="color: #6366f1;">(يُنصح بطباعته وحفظه في مكان سري وآمن)</span>
+                    </p>
+                    
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 15px; background: #fff; padding: 15px; border-radius: 15px; border: 2px dashed #f87171; max-width: 500px; margin: 0 auto;">
+                        <code id="emergencyKeyDisplay" style="font-family: 'Courier New', monospace; font-size: 1.4rem; font-weight: 900; color: #1e293b; letter-spacing: 2px;">EM-XXXX-XXXX-XXXX</code>
+                        <button onclick="regenerateEmergencyKey()" class="app-btn-secondary" style="border-radius: 10px; height: 40px; font-size: 0.8rem;">
+                            <i class="fa-solid fa-arrows-rotate"></i> توليد جديد
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Section: Users -->
             <div id="section-users" class="section">
                 <div class="card-header" style="justify-content: space-between; flex-wrap: wrap; gap: 15px;">
@@ -920,14 +1000,20 @@
                 state[k] = Storage.get(STORE_KEYS[k]) || (k === 'config' ? {} : []);
             });
 
-            // Populate Identity
+            // Identity
             document.getElementById('appName').value = state.config.appName || 'EduMaster Pro';
             document.getElementById('primaryColor').value = state.config.primaryColor || '#1a9e9c';
             document.getElementById('logoUrl').value = state.config.logoUrl || '';
             document.getElementById('footerText').value = state.config.footerText || '© 2026 EduMaster';
             document.getElementById('currency').value = state.config.currency || 'ج.م';
             document.getElementById('tax').value = state.config.tax || 0;
-            document.getElementById('skipDemo').checked = state.config.skipDemo || false;
+            
+            // Security Settings (v4.1)
+            document.getElementById('masterPassword').value = state.config.masterPassword || 'admin135';
+            document.getElementById('masterPasswordConfirm').value = state.config.masterPassword || 'admin135';
+            document.getElementById('recoveryEmail').value = state.config.recoveryEmail || '';
+            document.getElementById('adminWhatsapp').value = state.config.adminWhatsapp || '';
+            document.getElementById('emergencyKeyDisplay').innerText = state.config.emergencyKey || generateBackupKey();
 
             document.getElementById('broadcastMessage').value = state.config.broadcastMessage || '';
             document.getElementById('msgGatewayUrl').value = state.config.msgGatewayUrl || '';
@@ -1222,6 +1308,14 @@
         }
 
         async function saveAll() {
+            // Validate Security (v4.1)
+            const newPass = document.getElementById('masterPassword').value;
+            const confirmPass = document.getElementById('masterPasswordConfirm').value;
+            if (newPass !== confirmPass) {
+                Toast.show('❌ كلمتا المرور غير متطابقتين!', 'error');
+                return;
+            }
+
             state.config = {
                 appName: document.getElementById('appName').value,
                 primaryColor: document.getElementById('primaryColor').value,
@@ -1229,7 +1323,12 @@
                 footerText: document.getElementById('footerText').value,
                 currency: document.getElementById('currency').value,
                 tax: Number(document.getElementById('tax').value),
-                skipDemo: document.getElementById('skipDemo').checked,
+                
+                // Security Fields
+                masterPassword: newPass,
+                recoveryEmail: document.getElementById('recoveryEmail').value,
+                adminWhatsapp: document.getElementById('adminWhatsapp').value,
+                emergencyKey: document.getElementById('emergencyKeyDisplay').innerText,
 
                 broadcastMessage: document.getElementById('broadcastMessage').value,
                 msgGatewayUrl: document.getElementById('msgGatewayUrl').value,
@@ -1271,8 +1370,21 @@
             await recordMaintenanceLog('تحديث كافة إعدادات النظام');
 
             localStorage.setItem('edumaster_app_name', state.config.appName);
-            if (window.Toast) Toast.show('تم حفظ كافة البيانات بنجاح', 'success');
-            else alert('تم الحفظ بنجاح');
+            
+            // Cloud Sync (Immediate Protection)
+            if (window.Cloud && navigator.onLine) {
+                try {
+                    Toast.show('☁️ جاري المزامنة السحابية للبيانات والأمان...', 'info');
+                    await Cloud.pushAllRecords(state);
+                    Toast.show('✅ تم الحفظ والمزامنة السحابية بنجاح!', 'success');
+                } catch(e) { 
+                    console.warn("Cloud sync failed after save:", e); 
+                    Toast.show('✅ تم الحفظ محلياً (فشلت المزامنة السحابية)', 'warning');
+                }
+            } else {
+                Toast.show('✅ تم حفظ البيانات محلياً بنجاح', 'success');
+            }
+            
             renderMaintenanceLogs();
         }
 
@@ -1340,8 +1452,10 @@
                                         confirmText: 'تأكيد المسح النهائي',
                                         cancelText: 'توقف فوراً',
                                         onConfirm: () => {
-                                            const pass = prompt('يرجى إدخال كلمة المرور الرئيسية (admin135) للمصادقة على عملية التصفير:');
-                                            if (pass === 'admin135') {
+                                            const pass = prompt('يرجى إدخال كلمة المرور الرئيسية للمصادقة على عملية التصفير:');
+                                            const cfg = state.config || {};
+                                            const master = cfg.masterPassword || 'admin135';
+                                            if (pass === master) {
                                                 localStorage.clear();
                                                 alert('تم تصفير النظام بالكامل بنجاح. سيتم إعادة تحميل الصفحة الآن.');
                                                 location.reload();
@@ -1524,6 +1638,43 @@
             const type = document.getElementById('idCardInfoType').value;
             const group = document.getElementById('customCardTextGroup');
             if (group) group.style.display = (type === 'custom') ? 'block' : 'none';
+        }
+
+        // --- Security Helper Functions (v4.1) ---
+        function toggleInputType(id, icon) {
+            const input = document.getElementById(id);
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        }
+
+        function generateBackupKey() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let key = 'EM-';
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 4; j++) {
+                    key += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                if (i < 2) key += '-';
+            }
+            return key;
+        }
+
+        function regenerateEmergencyKey() {
+            Modal.confirm({
+                title: 'توليد مفتاح طوارئ جديد',
+                message: 'هل أنت متأكد؟ سيتم إبطال الكود القديم فوراً وحفظ الكود الجديد.',
+                type: 'danger',
+                onConfirm: () => {
+                    const newKey = generateBackupKey();
+                    document.getElementById('emergencyKeyDisplay').innerText = newKey;
+                    Toast.show('✅ تم توليد كود طوارئ جديد.. لا تنسى حفظه!', 'success');
+                }
+            });
         }
     </script>
     <!-- Firebase SDKs -->
