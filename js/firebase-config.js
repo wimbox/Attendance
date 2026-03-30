@@ -171,43 +171,21 @@ window.Cloud = {
     },
 
     onScanReceived: (branchId, callback, listenerId = null) => {
-        if (!window.FirestoreEngine?.db) {
-            if (window.firebase && firebase.database) {
-                // 🛡️ v10.2: Start listener, allow anything from last 60s (was 2s) to prevent 'Ghost Skips'
-                const checkTime = Date.now() - 60000;
-                return firebase.database().ref('edumaster/all_scans').limitToLast(10).on('child_added', snapshot => {
-                    const data = snapshot.val();
-                    const ts = data.serverTimestamp || data.timestamp || 0;
-                    if (ts < checkTime) return; 
-                    
-                    if (branchId && branchId !== 'all' && data.branchId !== branchId) return;
+        // 🚀 v10.4: Force RTDB for Scans (Fastest & Most Reliable for Real-time)
+        // We bypass Firestore for real-time listening because it's too slow for scanners.
+        if (window.firebase && firebase.database) {
+            const checkTime = Date.now() - 60000; // Allow 1 minute buffer
+            return firebase.database().ref('edumaster/all_scans').limitToLast(10).on('child_added', snapshot => {
+                const data = snapshot.val();
+                const ts = data.serverTimestamp || data.timestamp || 0;
+                if (ts < checkTime) return; 
+
+                if (!branchId || branchId === 'all' || data.branchId === branchId) {
                     callback(data);
-                });
-            }
-            return;
+                }
+            });
         }
-
-        const startTime = firebase.firestore.Timestamp.fromDate(new Date(Date.now() - 3000));
-        return window.FirestoreEngine.db.collection('scans')
-            .where('timestamp', '>=', startTime)
-            .orderBy('timestamp', 'desc')
-            .limit(10)
-            .onSnapshot(snapshot => {
-                snapshot.docChanges().forEach(change => {
-                    if (change.type === "added") {
-                        const data = change.doc.data();
-                        const fingerprint = data.fingerprint || change.doc.id;
-                        if (!window._processedFPs) window._processedFPs = new Set();
-                        if (window._processedFPs.has(fingerprint)) return;
-                        window._processedFPs.add(fingerprint);
-                        if (window._processedFPs.size > 50) window._processedFPs.delete(Array.from(window._processedFPs)[0]);
-
-                        if (!branchId || branchId === 'all' || data.branchId === branchId) {
-                            callback({ ...data, id: change.doc.id });
-                        }
-                    }
-                });
-            }, err => console.error("Firestore Listen Error:", err));
+        return null;
     },
 
     startScanBackgroundSync: (branchId, onSyncCallback) => {
@@ -286,18 +264,31 @@ window.Cloud = {
             const listKey = scan.type === 'STUDENT' ? 'attendance' : (scan.type === 'TRAINER' ? 'trainer_logs' : 'employee_logs');
             const data = Storage.get(listKey) || {};
             const itemKey = scan.type === 'STUDENT' ? `${dateKey}_global` : dateKey;
+            
             if (!data[itemKey]) data[itemKey] = {};
             if (!data[itemKey][scan.id]) data[itemKey][scan.id] = {};
             const entry = data[itemKey][scan.id];
 
-            if (entry.time === scan.time || entry.in === scan.time || entry.out === scan.time) return; 
+            // 🛡️ v10.3: Improved Deduplication 
+            // Only skip if the exact SAME time is already in BOTH fields (In and Out)
+            if (entry.in === scan.time && entry.out === scan.time) return;
+            if (scan.type === 'STUDENT' && entry.time === scan.time && entry.out === scan.time) return;
 
             if (scan.type === 'STUDENT') {
-                if (!entry.time) entry.time = scan.time; else entry.out = scan.time;
+                if (!entry.time) {
+                    entry.time = scan.time;
+                } else if (!entry.out || entry.out === scan.time) {
+                    // Allow saving 'out' even if it's the same minute as 'in' during testing
+                    entry.out = scan.time;
+                }
             } else {
                 entry.name = scan.name || entry.name;
                 entry.type = scan.type;
-                if (!entry.in) entry.in = scan.time; else entry.out = scan.time;
+                if (!entry.in) {
+                    entry.in = scan.time;
+                } else {
+                    entry.out = scan.time;
+                }
             }
             await Storage.save(listKey, data);
         }

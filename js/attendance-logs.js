@@ -45,7 +45,7 @@ class AttendanceLogsController {
                 }
                 
                 // Force a hard refresh
-                setTimeout(() => this.render(), 1000);
+                setTimeout(() => this.render(), 500);
             });
         }
 
