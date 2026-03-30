@@ -55,15 +55,17 @@ class StaffPortal {
     }
 
     initConnectionMonitoring() {
-        const dot = document.querySelector('.dot');
+        const dot = document.querySelector('.dot-pulse');
         const text = document.querySelector('#conn-text');
+
+        if (!dot || !text) return;
 
         const updateUI = (online) => {
             if (online) {
-                dot.className = "dot dot-green";
+                dot.className = "dot-pulse dot-green";
                 text.innerText = "متصل أونلاين";
             } else {
-                dot.className = "dot dot-red";
+                dot.className = "dot-pulse dot-red";
                 text.innerText = "غير متصل بالإنترنت";
             }
         };
@@ -79,10 +81,10 @@ class StaffPortal {
             const connectedRef = firebase.database().ref(".info/connected");
             connectedRef.on("value", (snap) => {
                 if (snap.val() === true) {
-                    dot.className = "dot dot-green";
+                    dot.className = "dot-pulse dot-green";
                     text.innerText = "متصل بالسحاب 🔥";
                 } else if (navigator.onLine) {
-                    dot.className = "dot dot-orange";
+                    dot.className = "dot-pulse dot-orange";
                     text.innerText = "متصل بالنت (بدون سحاب)";
                 }
             });
@@ -493,19 +495,12 @@ class StaffPortal {
 
     showManualOption() {
         let manualBtn = document.getElementById('manual-checkin-btn');
-        if (!manualBtn) {
-            manualBtn = document.createElement('button');
-            manualBtn.id = 'manual-checkin-btn';
-            manualBtn.className = 'btn-action';
-            manualBtn.style.cssText = 'background: #10b981; margin-top: 10px; display: flex;';
-            manualBtn.innerHTML = '<i class="fa-solid fa-hand-pointer"></i> تسجيل دخول يدوي (أوفلاين)';
+        if (manualBtn) {
+            manualBtn.style.display = 'flex';
             manualBtn.onclick = () => {
                 const branchId = this.detectBranch();
                 this.submitAttendance(branchId);
             };
-            this.toggleBtn.parentNode.insertBefore(manualBtn, this.toggleBtn.nextSibling);
-        } else {
-            manualBtn.style.display = 'flex';
         }
     }
 
