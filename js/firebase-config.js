@@ -38,14 +38,25 @@ window.Cloud = {
 
     // مستقبل الإشارات (السرعة القصوى للكمبيوتر)
     onScanReceived: (branchId, callback) => {
-        const startTime = Date.now() - 60000; // السماح بآخر 60 ثانية
-        return firebase.database().ref('edumaster/all_scans').limitToLast(10).on('child_added', snapshot => {
-            const data = snapshot.val();
-            const ts = data.serverTimestamp || data.timestamp || 0;
-            if (ts < startTime) return;
-            if (branchId && branchId !== 'all' && data.branchId !== branchId) return;
-            callback(data);
-        });
+        const startTime = Date.now() - 60000; // السماح بآخر دقيقة
+        if (window.firebase && firebase.database) {
+            console.log("📡 Cloud: Listener Started for branch:", branchId);
+            return firebase.database().ref('edumaster/all_scans').limitToLast(10).on('child_added', snapshot => {
+                const data = snapshot.val();
+                if (!data) return;
+
+                const ts = data.serverTimestamp || data.timestamp || 0;
+                if (ts < startTime) return;
+
+                // 🛡️ v11.1: Smart Branch Check (Normalizing branch vs branchId)
+                const incomingBranch = data.branchId || data.branch || 'miami';
+                console.log("☁️ Data Received in Background:", data.name, "from", incomingBranch);
+
+                if (!branchId || branchId === 'all' || String(incomingBranch) === String(branchId)) {
+                    callback(data);
+                }
+            });
+        }
     },
 
     // تحديث السحابة يدوياً
