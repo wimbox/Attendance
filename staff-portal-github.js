@@ -419,7 +419,7 @@ class StaffPortal {
 
             const actualCode = this.currentUser.serial_id || this.currentUser.code || this.currentUser.trainerCode || this.currentUser.user_code || this.currentUser.id;
 
-            // ⏱️ Safety net: Show success after 8s no matter what
+            // ⏱️ Safety net: Show success after 3s no matter what (was 8s)
             let successShown = false;
             const safetyTimer = setTimeout(() => {
                 if (!successShown) {
@@ -427,7 +427,7 @@ class StaffPortal {
                     console.warn("⚠️ Cloud sync timeout - showing success locally");
                     this.showSuccess(successTitle, successMsg);
                 }
-            }, 8000);
+            }, 3000);
 
             let pushTask;
             try {

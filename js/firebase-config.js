@@ -69,16 +69,30 @@ window.Cloud = {
         const fingerprint = `${scanData.id}_${timestamp}_${Math.random().toString(36).substr(2, 5)}`;
         const payload = { ...scanData, timestamp, branchId, fingerprint };
 
-        if (window.firebase && firebase.database) {
-             firebase.database().ref(`edumaster/all_scans`).push().set({ 
-                 ...payload, serverTimestamp: firebase.database.ServerValue.TIMESTAMP 
-             });
-        }
+        // ⚡ v10.2: Parallel Push Strategy
+        // We return the RTDB promise immediately because it's the fastest (~200ms)
+        // while Firestore runs in the background.
+        
+        const rtdbPush = new Promise((resolve, reject) => {
+            if (window.firebase && firebase.database) {
+                firebase.database().ref(`edumaster/all_scans`).push().set({ 
+                    ...payload, serverTimestamp: firebase.database.ServerValue.TIMESTAMP 
+                }, (error) => {
+                    if (error) reject(error); else resolve(true);
+                });
+            } else {
+                resolve(false);
+            }
+        });
+
+        // Background task for Firestore (Don't await it to prevent UI hang)
         if (window.FirestoreEngine?.db) {
-            await window.FirestoreEngine.db.collection('scans').add({
+            window.FirestoreEngine.db.collection('scans').add({
                 ...payload, timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            }).catch(e => console.warn("Firestore background push failed:", e));
         }
+
+        return rtdbPush;
     },
 
     pushStudent: (branchId, studentData) => {
@@ -159,10 +173,13 @@ window.Cloud = {
     onScanReceived: (branchId, callback, listenerId = null) => {
         if (!window.FirestoreEngine?.db) {
             if (window.firebase && firebase.database) {
-                const startTime = Date.now();
-                return firebase.database().ref('edumaster/all_scans').limitToLast(5).on('child_added', snapshot => {
+                // 🛡️ v10.2: Start listener, allow anything from last 60s (was 2s) to prevent 'Ghost Skips'
+                const checkTime = Date.now() - 60000;
+                return firebase.database().ref('edumaster/all_scans').limitToLast(10).on('child_added', snapshot => {
                     const data = snapshot.val();
-                    if ((data.serverTimestamp || data.timestamp || 0) < (startTime - 2000)) return;
+                    const ts = data.serverTimestamp || data.timestamp || 0;
+                    if (ts < checkTime) return; 
+                    
                     if (branchId && branchId !== 'all' && data.branchId !== branchId) return;
                     callback(data);
                 });
@@ -197,6 +214,66 @@ window.Cloud = {
         return window.Cloud.onScanReceived(branchId, (scan) => {
             window.Cloud._handleCloudScan(scan, onSyncCallback);
         }, 'background-sync');
+    },
+
+    /**
+     * 📥 pullTodayScans: Fetches all scans from today from Firebase.
+     * Used by the "تحديث السحابة" button in attendance-logs.html
+     */
+    pullTodayScans: async () => {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm   = String(today.getMonth() + 1).padStart(2, '0');
+        const dd   = String(today.getDate()).padStart(2, '0');
+        const todayStr = `${yyyy}-${mm}-${dd}`;
+        const startOfDay = new Date(`${todayStr}T00:00:00`).getTime();
+        const endOfDay   = new Date(`${todayStr}T23:59:59`).getTime();
+
+        const allScans = [];
+
+        // ── RTDB: Read from all_scans ──────────────────────────────
+        if (window.firebase && firebase.database) {
+            try {
+                const snap = await firebase.database()
+                    .ref('edumaster/all_scans')
+                    .orderByChild('serverTimestamp')
+                    .startAt(startOfDay)
+                    .endAt(endOfDay)
+                    .once('value');
+
+                if (snap.val()) {
+                    Object.values(snap.val()).forEach(s => {
+                        if (s && s.id) allScans.push(s);
+                    });
+                    console.log(`📅 pullTodayScans RTDB: got ${allScans.length} scans for ${todayStr}`);
+                }
+            } catch (e) {
+                console.warn('pullTodayScans RTDB error:', e);
+            }
+        }
+
+        // ── Firestore fallback (if RTDB had nothing) ───────────────
+        if (allScans.length === 0 && window.FirestoreEngine?.db) {
+            try {
+                const startTs = firebase.firestore.Timestamp.fromDate(new Date(`${todayStr}T00:00:00`));
+                const endTs   = firebase.firestore.Timestamp.fromDate(new Date(`${todayStr}T23:59:59`));
+                const snap = await window.FirestoreEngine.db
+                    .collection('scans')
+                    .where('timestamp', '>=', startTs)
+                    .where('timestamp', '<=', endTs)
+                    .orderBy('timestamp', 'asc')
+                    .get();
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    if (d && d.id) allScans.push({ ...d, _docId: doc.id });
+                });
+                console.log(`📅 pullTodayScans Firestore: got ${allScans.length} scans for ${todayStr}`);
+            } catch (e) {
+                console.warn('pullTodayScans Firestore error:', e);
+            }
+        }
+
+        return allScans;
     },
 
     _handleCloudScan: async (scan, onSyncCallback) => {
