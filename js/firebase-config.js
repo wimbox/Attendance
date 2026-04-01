@@ -5,36 +5,42 @@
  * projectId: attendance-f6fdc
  */
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBXc-L71Dqz-UwOXADcboJHAoXvshntHVg",
-  authDomain: "attendance-f6fdc.firebaseapp.com",
-  projectId: "attendance-f6fdc",
-  storageBucket: "attendance-f6fdc.firebasestorage.app",
-  messagingSenderId: "809905569514",
-  appId: "1:809905569514:web:a2eaebfbc4cab15962a193",
-  measurementId: "G-EWDTJR6B22"
-};
-
-// ✅ Safe Initialization (prevents duplicate init errors)
-if (!firebase.apps || !firebase.apps.length) {
+// ⚡ Safe Initialization System
+if (typeof firebase !== 'undefined' && (!firebase.apps || !firebase.apps.length)) {
+    var firebaseConfig = {
+        apiKey: "AIzaSyBXc-L71Dqz-UwOXADcboJHAoXvshntHVg",
+        authDomain: "attendance-f6fdc.firebaseapp.com",
+        projectId: "attendance-f6fdc",
+        storageBucket: "attendance-f6fdc.firebasestorage.app",
+        messagingSenderId: "809905569514",
+        appId: "1:809905569514:web:a2eaebfbc4cab15962a193",
+        measurementId: "G-EWDTJR6B22"
+    };
     firebase.initializeApp(firebaseConfig);
-    console.log("🔥 [Attendance] Firebase Initialized - مشروع مستقل جديد جاهز!");
-} else {
-    console.warn("⚠️ [Attendance] Firebase already initialized - skipping.");
 }
 
-// 🌩️ Firestore Engine (Primary Storage)
-const _db = firebase.firestore();
+// 🛡️ Auto-Load Firestore SDK if missing
+if (typeof firebase !== 'undefined' && typeof firebase.firestore !== 'function') {
+    const script = document.createElement('script');
+    script.src = "https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js";
+    document.head.appendChild(script);
+    script.onload = () => { window.location.reload(); }; // Reload once to activate Firestore
+}
+
+var _db = (typeof firebase !== 'undefined' && typeof firebase.firestore === 'function') ? firebase.firestore() : null;
+var _rtdb = (typeof firebase !== 'undefined' && typeof firebase.database === 'function') ? firebase.database() : null;
 
 // ✅ Enable Offline Persistence (يعمل حتى بدون إنترنت)
-_db.enablePersistence({ synchronizeTabs: true })
-   .catch(err => {
-       if (err.code === 'failed-precondition') {
-           console.warn('⚠️ Offline persistence: multiple tabs open');
-       } else if (err.code === 'unimplemented') {
-           console.warn('⚠️ Offline persistence: not supported in this browser');
-       }
-   });
+if (_db) {
+    _db.enablePersistence({ synchronizeTabs: true })
+       .catch(err => {
+           if (err.code === 'failed-precondition') {
+               console.warn('⚠️ Offline persistence: multiple tabs open');
+           } else if (err.code === 'unimplemented') {
+               console.warn('⚠️ Offline persistence: not supported in this browser');
+           }
+       });
+}
 
 // 🛡️ Fragmented Sync Engine (تجاوز حد الـ 1MB)
 window.FirestoreEngine = {
@@ -91,7 +97,7 @@ window.FirestoreEngine = {
 // 🔗 Cloud Bridge Functions
 window.Cloud = {
 
-    /** ⏱️ مساعد Timeout لمنع التعليق */
+    /** ⏱️ Helper to prevent hanging operations */
     runWithTimeout(promise, ms = 3000) {
         let timeoutId;
         const timeout = new Promise((_, reject) => {
@@ -100,52 +106,50 @@ window.Cloud = {
         return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
     },
 
-    /** 📤 إرسال حضور جديد */
+    /** 📤 Push real-time scan */
     pushScan: async (branchId, scanData) => {
-        const timestamp = Date.now();
-        const fingerprint = `${scanData.id}_${timestamp}_${Math.random().toString(36).substr(2, 5)}`;
-        const payload = { ...scanData, timestamp, branchId, fingerprint };
+        const payload = { 
+            ...scanData, 
+            timestamp: Date.now(), 
+            branchId, 
+            fingerprint: `${scanData.id}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+        };
 
-        // Firestore يعمل في الخلفية مع ضمان العودة عند النجاح أو انتهاء المهلة
         return window.Cloud.runWithTimeout(
             _db.collection('scans').add({
                 ...payload,
                 serverTimestamp: firebase.firestore.FieldValue.serverTimestamp()
             }),
-            3500 // Increased to 3.5s for real-world confirmation
+            3500 
         );
     },
 
-    /** 📤 حفظ نسخة احتياطية شاملة (مجزأة) */
+    /** 📤 Full database sync to Cloud (Optimized) */
     pushAllRecords: async (allData) => {
         try {
-            console.log("📤 [Attendance] Starting pushAllRecords...");
+            console.log("📤 [Attendance] Sycing database to Cloud...");
             await window.Cloud.runWithTimeout((async () => {
-                const keysToFragment = ['students', 'trainers', 'users', 'ledger', 'invoices'];
-                for (const key of keysToFragment) {
-                    // 🛡️ Check both prefixed and non-prefixed versions
-                    const prefixedKey = `edumaster_${key}`;
-                    const sourceData = allData[key] || allData[prefixedKey];
-
-                    if (sourceData && Array.isArray(sourceData)) {
-                        await window.FirestoreEngine.saveFragmented(key, sourceData);
+                const tables = ['students', 'trainers', 'users', 'ledger', 'invoices'];
+                for (const key of tables) {
+                    const data = allData[key] || allData[`edumaster_${key}`];
+                    if (data && Array.isArray(data)) {
+                        await window.FirestoreEngine.saveFragmented(key, data);
                     }
                 }
                 
-                // حفظ الإعدادات العامة
                 const config = allData.app_config || allData.edumaster_app_config || {};
                 await _db.collection('full_sync').doc('settings').set({
                     app_config: config,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
-            })(), 15000); // Increased timeout to 15s for heavy pushes (Ideal Config)
-            console.log("✅ [Attendance] Full sync to Firestore complete!");
+            })(), 15000); 
+            console.log("✅ [Attendance] Cloud sync complete!");
         } catch (e) {
-            console.warn("⚠️ pushAllRecords timed out or failed:", e.message);
+            console.warn("⚠️ Sync failed:", e.message);
         }
     },
 
-    /** 📥 تحميل جميع البيانات */
+    /** 📥 Download full database from Cloud */
     pullAllRecords: async () => {
         try {
             const fsPromise = (async () => {
@@ -155,34 +159,30 @@ window.Cloud = {
                     const frag = await window.FirestoreEngine.loadFragmented(k);
                     if (frag) {
                         data[k] = frag;
-                        // Also provide prefixed version for compatibility with portal expectations
-                        data[`edumaster_${k}`] = frag;
+                        data[`edumaster_${k}`] = frag; 
                     }
                 });
                 await Promise.all(tasks);
                 const settings = await _db.collection('full_sync').doc('settings').get();
                 if (settings.exists) {
-                    const config = settings.data().app_config;
-                    data.app_config = config;
-                    data.edumaster_app_config = config;
+                    const cfg = settings.data().app_config;
+                    data.app_config = cfg;
+                    data.edumaster_app_config = cfg;
                 }
-                // Return data if we found at least students or trainers
                 return (data.students || data.trainers) ? data : null;
             })();
 
-            const data = await window.Cloud.runWithTimeout(fsPromise, 12000); // Increased to 12s for pull reliability
-            if (data) return data;
+            const result = await window.Cloud.runWithTimeout(fsPromise, 12000);
+            if (result) return result;
         } catch (e) {
-            console.warn("⚠️ pullAllRecords failed/timeout:", e.message);
+            console.warn("⚠️ Pull failed:", e.message);
         }
         return null;
     },
 
-    /** 📡 الاستماع للحضور الجديد فور وصوله */
+    /** 📡 Real-time Listener */
     onScanReceived: (branchId, callback) => {
         const startTime = firebase.firestore.Timestamp.fromDate(new Date(Date.now() - 5000));
-        console.log("📡 [Attendance] Firestore Listener started for branch:", branchId);
-
         return _db.collection('scans')
             .where('serverTimestamp', '>=', startTime)
             .orderBy('serverTimestamp', 'desc')
@@ -196,19 +196,15 @@ window.Cloud = {
                         if (!window._processedFPs) window._processedFPs = new Set();
                         if (window._processedFPs.has(fingerprint)) return;
                         window._processedFPs.add(fingerprint);
-                        if (window._processedFPs.size > 100) {
-                            window._processedFPs.delete(Array.from(window._processedFPs)[0]);
-                        }
+                        if (window._processedFPs.size > 100) window._processedFPs.delete(Array.from(window._processedFPs)[0]);
 
-                        const incomingBranch = data.branchId || data.branch || 'miami';
+                        const incomingBranch = data.branchId || data.branch;
                         if (!branchId || branchId === 'all' || String(incomingBranch) === String(branchId)) {
                             callback({ ...data, id: change.doc.id });
                         }
                     }
                 });
-            }, err => {
-                console.error("❌ Firestore Listener Error:", err);
-            });
+            }, err => console.error("❌ Listener Error:", err));
     },
 
     startScanBackgroundSync: (branchId, onSyncCallback) => {
@@ -218,33 +214,30 @@ window.Cloud = {
     },
 
     _handleCloudScan: async (scan, onSyncCallback) => {
-        if (!scan || !scan.id) return;
-        const ts = (scan.serverTimestamp && scan.serverTimestamp.toMillis)
-            ? scan.serverTimestamp.toMillis()
-            : (scan.timestamp || Date.now());
-        const dateObj = new Date(ts);
-        const dateKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
+        if (!scan || !scan.id || typeof Storage === 'undefined') return;
+        
+        const ts = (scan.serverTimestamp && scan.serverTimestamp.toMillis) ? scan.serverTimestamp.toMillis() : (scan.timestamp || Date.now());
+        const d = new Date(ts);
+        const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        const listKey = scan.type === 'STUDENT' ? 'attendance' : (scan.type === 'TRAINER' ? 'trainer_logs' : 'employee_logs');
+        const data = Storage.get(listKey) || {};
+        const itemKey = scan.type === 'STUDENT' ? `${dateKey}_global` : dateKey;
+        
+        if (!data[itemKey]) data[itemKey] = {};
+        if (!data[itemKey][scan.id]) data[itemKey][scan.id] = {};
+        const entry = data[itemKey][scan.id];
+        const isOut = scan.status === 'OUT' || scan.isOut === true;
 
-        if (typeof Storage !== 'undefined') {
-            const listKey = scan.type === 'STUDENT' ? 'attendance' : (scan.type === 'TRAINER' ? 'trainer_logs' : 'employee_logs');
-            const data = Storage.get(listKey) || {};
-            const itemKey = scan.type === 'STUDENT' ? `${dateKey}_global` : dateKey;
-            if (!data[itemKey]) data[itemKey] = {};
-            if (!data[itemKey][scan.id]) data[itemKey][scan.id] = {};
-            const entry = data[itemKey][scan.id];
-            const isOutEvent = scan.status === 'OUT' || scan.isOut === true;
-
-            if (scan.type === 'STUDENT') {
-                if (isOutEvent) { entry.out = scan.time; }
-                else { if (!entry.time) entry.time = scan.time; }
-            } else {
-                entry.name = scan.name || entry.name;
-                entry.type = scan.type;
-                if (isOutEvent) { entry.out = scan.time; }
-                else { if (!entry.in) entry.in = scan.time; }
-            }
-            await Storage.save(listKey, data);
+        if (scan.type === 'STUDENT') {
+            if (isOut) entry.out = scan.time;
+            else if (!entry.time) entry.time = scan.time;
+        } else {
+            entry.name = scan.name || entry.name;
+            entry.type = scan.type;
+            if (isOut) entry.out = scan.time;
+            else if (!entry.in) entry.in = scan.time;
         }
+        await Storage.save(listKey, data);
         if (onSyncCallback) onSyncCallback(scan);
     }
 };

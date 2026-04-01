@@ -57,52 +57,21 @@ class StaffPortal {
     initConnectionMonitoring() {
         const dot = document.querySelector('.dot-pulse');
         const text = document.querySelector('#conn-text');
-
         if (!dot || !text) return;
 
         const updateUI = (online) => {
-            if (online) {
-                dot.className = "dot-pulse dot-green";
-                text.innerText = "متصل أونلاين";
-            } else {
-                dot.className = "dot-pulse dot-red";
-                text.innerText = "غير متصل بالإنترنت";
-            }
+            dot.className = online ? "dot-pulse dot-green" : "dot-pulse dot-red";
+            text.innerText = online ? "متصل أونلاين 🔥" : "غير متصل بالإنترنت";
         };
 
-        // Initial check
         updateUI(navigator.onLine);
-
         window.addEventListener('online', () => updateUI(true));
         window.addEventListener('offline', () => updateUI(false));
 
-        // Firebase Connection Check (Deep Check)
         if (window.firebase) {
-            // Keep RTDB check for instant status
-            const connectedRef = firebase.database().ref(".info/connected");
-            connectedRef.on("value", (snap) => {
-                if (snap.val() === true) {
-                    dot.className = "dot-pulse dot-green";
-                    text.innerText = "متصل بالسحاب 🔥";
-                } else if (navigator.onLine) {
-                    // Try a lightweight Firestore check if RTDB is being slow
-                    firebase.firestore().collection('full_sync').doc('settings').get({ source: 'server' })
-                        .then(() => {
-                            dot.className = "dot-pulse dot-green";
-                            text.innerText = "متصل بالسحاب 🔥";
-                        }).catch(() => {
-                            dot.className = "dot-pulse dot-orange";
-                            text.innerText = "متصل بالنت (بدون سحاب)";
-                        });
-                }
+            firebase.database().ref(".info/connected").on("value", (snap) => {
+                if (snap.val() === true) updateUI(true);
             });
-        }
-    }
-
-    resetData() {
-        if (confirm("هل تريد مسح البيانات المحفوظة على هذا المتصفح؟")) {
-            localStorage.clear();
-            location.reload();
         }
     }
 
