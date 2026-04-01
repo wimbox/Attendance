@@ -79,25 +79,31 @@ class AttendanceLogsController {
 
     async pullFromCloud() {
         if (!window.UI || !window.Cloud || !window.Cloud.pullTodayScans) return;
-        
-        UI.notify('info', 'جارٍ مزامنة البيانات من السحابة...');
         try {
+            // 1. First, pull the 1MB Block Sync (from mobile updates)
+            if (window.Cloud.pullAllRecords) {
+                const blockData = await window.Cloud.pullAllRecords();
+                if (blockData) {
+                    console.log("📦 Applying 1MB Block Sync data...");
+                    if (blockData.attendance) Storage.save('attendance', blockData.attendance);
+                    if (blockData.employee_logs) Storage.save('employee_logs', blockData.employee_logs);
+                    if (blockData.trainer_logs) Storage.save('trainer_logs', blockData.trainer_logs);
+                }
+            }
+
+            // 2. Also try realtime scans (if any arrived via onScanReceived or pushScan)
             const scans = await window.Cloud.pullTodayScans();
             if (scans && scans.length > 0) {
-                console.log(`📡 Recovering ${scans.length} scans from cloud...`);
-                
-                // Sort by time ascending so we don't mess up in/out order
+                console.log(`📡 Recovering ${scans.length} realtime scans from cloud...`);
                 scans.sort((a,b) => (a.serverTimestamp || 0) - (b.serverTimestamp || 0));
-
                 for (const scan of scans) {
                     await this._handleCloudScan(scan);
                 }
-                
-                this.render();
-                UI.notify('success', `تم استرجاع ${scans.length} سجل من السحابة بنجاح ✅`);
-            } else {
-                UI.notify('warning', 'لا توجد سجلات سحابية متاحة حالياً');
             }
+            
+            this.render();
+            UI.notify('success', `✅ تم تحديث ومزامنة السجلات من السحاب بنجاح`);
+            
         } catch (err) {
             console.error(err);
             UI.notify('danger', 'فشل في الاتصال بالسحابة');

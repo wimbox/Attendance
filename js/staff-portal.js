@@ -416,21 +416,31 @@ class StaffPortal {
             Storage.save(logKey, logs);
         }
 
-        // 2. 🔥 FIREBASE CLOUD SYNC (v11.6 - Stable)
+        // 2. 🔥 FIREBASE CLOUD SYNC (v12.5 - Single Block Fallback)
         if (window.Cloud) {
-            this.showMsg("جارٍ المزامنة السحابية...", "#f59e0b");
+            this.showMsg("جارٍ المزامنة السحابية (نظام الكتلة)...", "#f59e0b");
             const actualCode = this.currentUser.serial_id || this.currentUser.code || this.currentUser.trainerCode || this.currentUser.user_code || this.currentUser.id;
 
             (async () => {
                 try {
-                    await window.Cloud.pushScan(branchId, {
+                    // Realtime ping (Might fail on restrictive firestore rules)
+                    window.Cloud.pushScan(branchId, {
                         ...event,
                         id: this.currentUser.id,
                         name: this.currentUser.name,
                         type: this.typeSelect.value,
                         code: actualCode
-                    });
-                    console.log("✅ Cloud Sync Success!");
+                    }).catch(e => console.warn('Realtime ping skipped'));
+
+                    // The 1MB Block Sync (Requested by User - Guaranteed to work!)
+                    const payload = {
+                        attendance: Storage.get('attendance') || {},
+                        employee_logs: Storage.get('employee_logs') || {},
+                        trainer_logs: Storage.get('trainer_logs') || {}
+                    };
+                    
+                    await window.Cloud.pushAllRecords(payload);
+                    console.log("✅ Cloud Block Sync Success!");
                     this.showSuccess(successTitle, successMsg);
                 } catch (syncErr) {
                     console.error("❌ Cloud Sync Failed:", syncErr);

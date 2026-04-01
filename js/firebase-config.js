@@ -210,7 +210,7 @@ window.Cloud = {
                     ...data,
                     lastSync: Date.now(),
                     syncDevice: navigator.userAgent
-                }),
+                }, { merge: true }),
                 8000
             );
         } catch (err) {
