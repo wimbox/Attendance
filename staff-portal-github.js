@@ -1,6 +1,7 @@
 /**
- * Staff Portal Controller v1.0
+ * Staff Portal Controller v11.6 (Cloud-Native Stable)
  * Handles employee/trainer attendance via mobile camera scanning.
+ * Linked to GitHub Pages deployment.
  */
 
 class StaffPortal {
@@ -38,7 +39,6 @@ class StaffPortal {
             }
         });
 
-        // 🎯 Support Enter key for quick search
         this.idInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
@@ -46,54 +46,43 @@ class StaffPortal {
             }
         });
 
-        // Clear warning on type
         this.idInput.addEventListener('input', () => {
-             this.statusMsg.style.display = 'none';
+             this.hideMsg();
         });
 
         this.initConnectionMonitoring();
     }
 
     initConnectionMonitoring() {
-        const dot = document.querySelector('.dot');
+        const dot = document.querySelector('.dot-pulse') || document.querySelector('.dot');
         const text = document.querySelector('#conn-text');
+        if (!dot || !text) return;
 
-        const updateUI = (online) => {
-            if (online) {
-                dot.className = "dot dot-green";
-                text.innerText = "متصل أونلاين";
+        const updateUI = (online, cloud) => {
+            if (cloud) {
+                dot.className = "dot-pulse dot-green";
+                text.innerText = "متصل بالسحاب 🔥";
+            } else if (online) {
+                dot.className = "dot-pulse dot-orange";
+                text.innerText = "متصل بالنت (بدون سحاب)";
             } else {
-                dot.className = "dot dot-red";
+                dot.className = "dot-pulse dot-red";
                 text.innerText = "غير متصل بالإنترنت";
             }
         };
 
-        // Initial check
-        updateUI(navigator.onLine);
+        // Standard event listeners
+        window.addEventListener('online', () => updateUI(true, !!window._db));
+        window.addEventListener('offline', () => updateUI(false, false));
 
-        window.addEventListener('online', () => updateUI(true));
-        window.addEventListener('offline', () => updateUI(false));
+        // Deep Firebase Sync Check
+        const checkCloud = () => {
+            const isCloudReady = !!(typeof firebase !== 'undefined' && firebase.apps.length > 0 && window._db);
+            updateUI(navigator.onLine, isCloudReady);
+        };
 
-        // Firebase Connection Check (Deep Check)
-        if (window.firebase) {
-            const connectedRef = firebase.database().ref(".info/connected");
-            connectedRef.on("value", (snap) => {
-                if (snap.val() === true) {
-                    dot.className = "dot dot-green";
-                    text.innerText = "متصل بالسحاب 🔥";
-                } else if (navigator.onLine) {
-                    dot.className = "dot dot-orange";
-                    text.innerText = "متصل بالنت (بدون سحاب)";
-                }
-            });
-        }
-    }
-
-    resetData() {
-        if (confirm("هل تريد مسح البيانات المحفوظة على هذا المتصفح؟")) {
-            localStorage.clear();
-            location.reload();
-        }
+        setInterval(checkCloud, 3000);
+        checkCloud();
     }
 
     async pullFullSync() {
@@ -107,14 +96,12 @@ class StaffPortal {
         try {
             const data = await Cloud.pullAllRecords();
             if (!data) {
-                this.showMsg("لا توجد بيانات سحابية متوفرة حالياً.", "#f43f5e");
+                this.showMsg("عفواً، السحاب فارغ! تأكد من رفع البيانات من الجهاز الرئيسي أولاً.", "#f43f5e");
                 return;
             }
 
-            // Sync with local IDB
             for (let [key, val] of Object.entries(data)) {
                 if (key === 'syncAt') continue;
-                // Strip the 'edumaster_' prefix if it exists from Cloud.push
                 const cleanKey = key.replace('edumaster_', '');
                 Storage.save(cleanKey, val);
             }
@@ -124,13 +111,10 @@ class StaffPortal {
 
         } catch (err) {
             console.error("Sync Error:", err);
-            this.showMsg("فشل التحديث السحابي: " + err.message, "#f43f5e");
+            this.showMsg("حدث خطأ في النظام: " + err.message, "#f43f5e");
         }
     }
 
-    /**
-     * Unified logic to find user and start action (Camera/GPS/Manual)
-     */
     async handleAuthAndAction() {
         const userId = this.idInput.value.trim();
         if (!userId) {
@@ -138,93 +122,44 @@ class StaffPortal {
             return;
         }
 
-        // Auto-detect type if prefix is present
-        let q = userId.toLowerCase();
-        if (q.startsWith('s')) { this.typeSelect.value = 'STUDENT'; }
-        else if (q.startsWith('t')) { this.typeSelect.value = 'TRAINER'; }
-        else if (q.startsWith('e')) { this.typeSelect.value = 'EMPLOYEE'; }
-
-        // Save data
-        if (!this.rememberCheckbox || this.rememberCheckbox.checked) {
-            localStorage.setItem('staff_portal_type', this.typeSelect.value);
-            localStorage.setItem('staff_portal_id', userId);
-        }
-
-        // Find user
         this.currentUser = this.findUser(userId, this.typeSelect.value);
         
         if (!this.currentUser) {
-            const trainers = Storage.get('trainers') || [];
-            const students = Storage.get('students') || [];
-            this.showMsg(`🚨 كود غير مسجل! اضغط (تحديث السحاب) بالأسفل. [stats: T=${trainers.length}, S=${students.length}]`, "#f43f5e");
+            this.showMsg(`🚨 كود غير مسجل! اضغط (تحديث السحاب) بالأسفل.`, "#f43f5e");
             return;
         }
 
-        this.showMsg(`مرحباً ${this.currentUser.name}، يمكنك الضغط على 'دخول يدوي' الآن أو توجيه الكاميرا.`, "#10b981");
-        this.showManualOption();
+        // Auto-correct type
+        const studentsList = Storage.get('students') || [];
+        const trainersList = Storage.get('trainers') || [];
+        if (studentsList.some(s => String(s.id) === String(this.currentUser.id))) {
+            this.typeSelect.value = 'STUDENT';
+        } else if (trainersList.some(t => String(t.id) === String(this.currentUser.id))) {
+            this.typeSelect.value = 'TRAINER';
+        } else {
+            this.typeSelect.value = 'EMPLOYEE';
+        }
 
-        // Start GPS + Camera
+        this.showMsg(`مرحباً ${this.currentUser.name}، يمكنك التسجيل يدوياً أو استخدام الكاميرا.`, "#10b981");
+        this.showManualOption();
         this.startScanner();
     }
 
     async startScanner() {
         if (this.isScanning) return;
         this.isScanning = true;
-
-        const isFileProtocol = window.location.protocol === 'file:';
-        if (isFileProtocol) {
-            console.warn("⚠️ Protocol is file:// - GPS/Camera may be blocked.");
-            this.showMsg("وضع الأوفلاين: الموقع والكاميرا قد يعطلان في المتصفح. استخدم 'الدخول اليدوي'.", "#eab308");
-        } else {
-            this.showMsg("يتم تحديد موقعك الجغرافي للتحقق...", "#eab308");
-        }
+        this.scannerBox.style.display = 'block';
+        this.toggleBtn.classList.add('scanning');
+        document.getElementById('btn-text').textContent = "إيقاف المسح";
         
-        const branchId = this.detectBranch();
-
-        if ("geolocation" in navigator && !isFileProtocol) {
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    this.currentLocation = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude,
-                        accuracy: position.coords.accuracy
-                    };
-                    await this.openCameraCore();
-                },
-                async (error) => {
-                    console.warn("GPS Error/Refused:", error);
-                    this.currentLocation = { error: "مرفوض أو غير متاح", code: error.code };
-                    await this.openCameraCore(); 
-                },
-                { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
-            );
-        } else {
-            // Skips GPS for file:// or unsupported browsers
-            this.currentLocation = { error: isFileProtocol ? "بروتوكول ملفات محلي" : "المتصفح لا يدعم" };
-            await this.openCameraCore();
-        }
-    }
-
-    async openCameraCore() {
         try {
-            this.isScanning = true;
-            this.scannerBox.style.display = 'block';
-            this.toggleBtn.classList.add('scanning');
-            document.getElementById('btn-text').textContent = "إيقاف المسح";
-            
             this.html5QrCode = new Html5Qrcode("reader");
-            const config = { fps: 15, qrbox: { width: 250, height: 250 } };
-
             await this.html5QrCode.start(
                 { facingMode: "environment" }, 
-                config, 
+                { fps: 15, qrbox: { width: 250, height: 250 } }, 
                 (decodedText) => this.onScanSuccess(decodedText)
             );
-
-            this.showMsg("تم تحديد موقعك. وجّه الكاميرا نحو الكيو آر كود", "#10b981");
-
         } catch (err) {
-            console.error(err);
             this.showMsg("فشل فتح الكاميرا: " + err.message, "#f43f5e");
             this.isScanning = false;
         }
@@ -242,117 +177,32 @@ class StaffPortal {
     }
 
     onScanSuccess(decodedText) {
-        // Expected code from the center: "SEC:[BranchID]:[Timestamp]:[Token]"
         if (!decodedText.startsWith("SEC:")) {
-            this.showMsg("كود غير صالح! يرجى مسح كود السنتر الأصلي المتغير.", "#f43f5e");
+            this.showMsg("كود غير صالح!", "#f43f5e");
             return;
         }
-
-        const parts = decodedText.split(':');
-        if (parts.length < 4) {
-            this.showMsg("بيانات الكود ناقصة، برجاء المحاولة مرة أخرى.", "#f43f5e");
-            return;
-        }
-
-        const branchId = parts[1];
-        const qrTimestamp = parseInt(parts[2]);
-        const token = parts[3]; // Extract the strict security token
-        
-        // 🛡️ v8.5: Balanced Time Validation (Allow 5m drift)
-        const now = Date.now();
-        const ageInSeconds = (now - qrTimestamp) / 1000;
-        
-        if (ageInSeconds > 300 || ageInSeconds < -300) {
-            this.showMsg(`عفواً، صورة الباركود منتهية الصلاحية. يرجى المسح من الشاشة مباشرة.`, "#f43f5e");
-            setTimeout(() => this.stopScanner(), 2000);
-            return;
-        }
-
-        console.log("🔓 Code valid locally. Submitting to branch:", branchId);
-
-        this.lastScannedToken = token; // Save token for submission
+        const branchId = decodedText.split(':')[1];
         this.stopScanner();
         this.submitAttendance(branchId);
     }
 
     findUser(query, type) {
-        // --- 1. Aggressive Data Collection ---
         const trainers = Storage.get('trainers') || [];
         const students = Storage.get('students') || [];
         const users = Storage.get('users') || [];
-        
-        // Primary list based on selection, the others become fallback
-        let primaryList = [];
-        if (type === 'TRAINER') primaryList = trainers;
-        else if (type === 'STUDENT') primaryList = students;
-        else primaryList = users;
-        
-        // Blend all for final fallback (Ultimate search)
         const allPeople = [...trainers, ...students, ...users];
 
-        if (!query || !query.trim()) return null;
+        const rawQ = query.trim().toLowerCase();
+        const numericQ = rawQ.replace(/\D/g, '');
 
-        const rawQ = query.trim();
-        const numericQ = rawQ.replace(/\D/g, ''); // "35506601"
-        const lowerQ = rawQ.toLowerCase();       // "t35506601"
-        const cleanQ = rawQ.replace(/[^a-z0-9]/g, '').toLowerCase(); // "t35506601"
-        const nameQ = Utils.normalizeArabic(rawQ);
-
-        console.log(`🔍 Portal Search: Raw="${rawQ}", Numeric="${numericQ}", Clean="${cleanQ}"`);
-        console.log(`📊 DB Stats: Trainers=${trainers.length}, Students=${students.length}, Users=${users.length}`);
-
-        // Helper: The matching logic
         const match = (u) => {
-            // A) Exact name or partial name match
-            if (nameQ && Utils.normalizeArabic(u.name || '').includes(nameQ)) return true;
-            
-            // B) Phone match
-            if (rawQ.length >= 7 && String(u.phone || '') === rawQ) return true;
-            
-            // C) Stored identifiers (Numeric or Alpha)
+            if (Utils.normalizeArabic(u.name || '').includes(Utils.normalizeArabic(rawQ))) return true;
+            if (numericQ.length >= 7 && String(u.phone || '') === numericQ) return true;
             const codes = [u.id, u.code, u.trainerCode, u.serial_id, u.username, u.user_code];
-            for(let c of codes) {
-                if (!c) continue;
-                const sc = String(c).toLowerCase();
-                const sn = sc.replace(/\D/g, '');
-                const sa = sc.replace(/[^a-z0-9]/g, '');
-                
-                if (sc === lowerQ) return true;
-                if (sn === numericQ && numericQ !== '') return true;
-                if (sa === cleanQ) return true;
-                if (sn === cleanQ.replace(/\D/g, '') && sn !== '') return true;
-            }
-
-            // D) Regenerated "Fixed Code" (V5 logic)
-            if (window.Utils?.generateFixedCode && numericQ.length >= 7) {
-                // Try as Trainer (3), Student (1), Employee (2)
-                const prefixes = ['TRA', 'STD', 'EMP'];
-                const seeds = [u.phone, u.phone ? u.phone.replace(/^0+/, '') : null, u.id, u.username];
-                for (let p of prefixes) {
-                    for (let s of seeds) {
-                        if (!s) continue;
-                        const expected = String(Utils.generateFixedCode(p, s)).replace(/\D/g, '');
-                        if (expected === numericQ) return true;
-                    }
-                }
-            }
-            return false;
+            return codes.some(c => String(c || '').toLowerCase() === rawQ);
         };
 
-        // Execution Step 1: Search in primary list
-        let found = primaryList.find(match);
-        
-        // Execution Step 2: Fallback to searching EVERYONE (if they selected wrong category)
-        if (!found) {
-            found = allPeople.find(match);
-            if (found) console.log("💡 Found user in fallback (wrong category selected)");
-        }
-
-        if (!found) {
-            console.warn("❌ Portal Search Failed for:", rawQ);
-        }
-
-        return found;
+        return allPeople.find(match);
     }
 
     submitAttendance(branchId) {
@@ -364,140 +214,60 @@ class StaffPortal {
             name: this.currentUser.name,
             type: this.typeSelect.value,
             branch: branchId,
-            status: isOut ? 'OUT' : 'IN',
-            isOut: isOut,
             timestamp: now.toISOString(),
             time: now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' }),
             method: 'MOBILE_SCAN',
-            gps: this.currentLocation,
-            qrToken: this.lastScannedToken // 🛡️ Attach token for strict validaton
+            gps: this.currentLocation
         };
 
-        console.log("🚀 Submitting Attendance with GPS:", event);
-
-        // 1. Local Persistence (v7.3 - Immediate Save)
+        // 1. Local
         const dateKey = now.toLocaleDateString('en-CA');
-        let successTitle = "تسجيل حضور", successMsg = `أهلاً بك يا ${this.currentUser.name}، تم تسجيل دخولك بنجاح.`;
-
+        const listKey = this.typeSelect.value === 'STUDENT' ? 'attendance' : (this.typeSelect.value === 'TRAINER' ? 'trainer_logs' : 'employee_logs');
+        const data = Storage.get(listKey) || {};
+        const itemKey = this.typeSelect.value === 'STUDENT' ? `${dateKey}_global` : dateKey;
+        
+        if (!data[itemKey]) data[itemKey] = {};
+        if (!data[itemKey][this.currentUser.id]) data[itemKey][this.currentUser.id] = {};
+        const entry = data[itemKey][this.currentUser.id];
+        
+        let sTitle = "تسجيل حضور", sMsg = `أهلاً ${this.currentUser.name}، تم تسجيل دخولك.`;
         if (this.typeSelect.value === 'STUDENT') {
-            const att = Storage.get('attendance') || {};
-            const nodeKey = `${dateKey}_global`;
-            if (!att[nodeKey]) att[nodeKey] = {};
-            if (!att[nodeKey][this.currentUser.id]) att[nodeKey][this.currentUser.id] = {};
-            const entry = att[nodeKey][this.currentUser.id];
-            if (!entry.time) {
-                entry.time = event.time;
-            } else {
-                entry.out = event.time;
-                successTitle = "تسجيل انصراف";
-                successMsg = `وداعاً ${this.currentUser.name}، تم تسجيل خروجك بنجاح.`;
-            }
-            Storage.save('attendance', att);
+            if (!entry.time) entry.time = event.time;
+            else { entry.out = event.time; sTitle = "تسجيل انصراف"; sMsg = `وداعاً ${this.currentUser.name}.`; }
         } else {
-            const logKey = this.typeSelect.value === 'TRAINER' ? 'trainer_logs' : 'employee_logs';
-            const logs = Storage.get(logKey) || {};
-            if (!logs[dateKey]) logs[dateKey] = {};
-            if (!logs[dateKey][this.currentUser.id]) logs[dateKey][this.currentUser.id] = {};
-            const userLog = logs[dateKey][this.currentUser.id];
-            if (!userLog.in) {
-                userLog.in = event.time;
-                if (event.gps) userLog.gpsIn = event.gps;
-            } else {
-                userLog.out = event.time;
-                if (event.gps) userLog.gpsOut = event.gps;
-                successTitle = "تسجيل انصراف";
-                successMsg = `وداعاً ${this.currentUser.name}، تم تسجيل خروجك بنجاح.`;
-            }
-            Storage.save(logKey, logs);
+            if (!entry.in) entry.in = event.time;
+            else { entry.out = event.time; sTitle = "تسجيل انصراف"; sMsg = `وداعاً ${this.currentUser.name}.`; }
         }
+        Storage.save(listKey, data);
 
-        // 2. 🔥 FIREBASE CLOUD SYNC
+        // 2. Cloud
         if (window.Cloud) {
             this.showMsg("جارٍ المزامنة السحابية...", "#f59e0b");
-            
-            let codePrefix = '2'; // Employee
-            if (this.typeSelect.value === 'TRAINER') codePrefix = '3';
-            if (this.typeSelect.value === 'STUDENT') codePrefix = '1';
+            const actualCode = this.currentUser.serial_id || this.currentUser.code || this.currentUser.id;
 
-            const actualCode = this.currentUser.serial_id || this.currentUser.code || this.currentUser.trainerCode || this.currentUser.user_code || this.currentUser.id;
-
-            // ⏱️ Safety net: Show success after 3s no matter what (was 8s)
-            let successShown = false;
-            const safetyTimer = setTimeout(() => {
-                if (!successShown) {
-                    successShown = true;
-                    console.warn("⚠️ Cloud sync timeout - showing success locally");
-                    this.showSuccess(successTitle, successMsg);
+            (async () => {
+                try {
+                    await window.Cloud.pushScan(branchId, { ...event, code: actualCode });
+                    this.showSuccess(sTitle, sMsg);
+                } catch (e) {
+                    this.showMsg("⚠️ فشل السحاب! أغلق Shields.", "#ef4444");
+                    setTimeout(() => this.showSuccess(sTitle, sMsg), 2000);
                 }
-            }, 3000);
-
-            let pushTask;
-            try {
-                pushTask = window.Cloud.pushScan(branchId, {
-                    ...event,
-                    id: this.currentUser.id,
-                    name: this.currentUser.name,
-                    type: this.typeSelect.value,
-                    code: actualCode
-                });
-            } catch(syncErr) {
-                console.error("❌ Cloud.pushScan threw:", syncErr);
-                clearTimeout(safetyTimer);
-                successShown = true;
-                this.showSuccess(successTitle, successMsg);
-                return;
-            }
-
-            if (pushTask && pushTask.then) {
-                pushTask.then(() => {
-                    clearTimeout(safetyTimer);
-                    if (!successShown) {
-                        successShown = true;
-                        console.log("🔥 Cloud Sync Verified!");
-                        this.showSuccess(successTitle, successMsg);
-                    }
-                }).catch(e => {
-                    clearTimeout(safetyTimer);
-                    if (!successShown) {
-                        successShown = true;
-                        console.error("❌ Cloud Sync Failed:", e);
-                        this.showMsg("تم الحفظ محلياً (فشل المزامنة)", "#ef4444");
-                        setTimeout(() => this.showSuccess(successTitle, successMsg), 1500);
-                    }
-                });
-            } else {
-                clearTimeout(safetyTimer);
-                successShown = true;
-                this.showSuccess(successTitle, successMsg);
-            }
+            })();
         } else {
-            this.showSuccess(successTitle, successMsg);
+            this.showSuccess(sTitle, sMsg);
         }
     }
 
     showMsg(txt, color) {
         if (!this.statusMsg) return;
-        if (this.statusMsg.id === 'status-banner') {
-            this.statusMsg.style.background = color + '18';
-            this.statusMsg.style.color = color;
-            this.statusMsg.style.borderColor = color + '33';
-            this.statusMsg.textContent = txt;
-            this.statusMsg.classList.add('visible');
-        } else {
-            this.statusMsg.style.display = 'block';
-            this.statusMsg.style.background = color + '22';
-            this.statusMsg.style.color = color;
-            this.statusMsg.textContent = txt;
-        }
+        this.statusMsg.style.color = color;
+        this.statusMsg.textContent = txt;
+        this.statusMsg.classList.add('visible');
     }
 
     hideMsg() {
-        if (!this.statusMsg) return;
-        if (this.statusMsg.id === 'status-banner') {
-            this.statusMsg.classList.remove('visible');
-        } else {
-            this.statusMsg.style.display = 'none';
-        }
+        if (this.statusMsg) this.statusMsg.classList.remove('visible');
     }
 
     showSuccess(title, msg) {
@@ -507,51 +277,21 @@ class StaffPortal {
             screen.style.display = 'flex';
             screen.querySelector('h2').textContent = title;
             document.getElementById('success-done-msg').textContent = msg;
-        } else {
-            alert(title + "\n" + msg);
         }
-    }
-
-    resetData() {
-        localStorage.removeItem('staff_portal_type');
-        localStorage.removeItem('staff_portal_id');
-        this.idInput.value = '';
-        if (this.rememberCheckbox) this.rememberCheckbox.checked = false;
-        this.showMsg("تم تصفير البيانات بنجاح، يمكنك إدخال بيانات جديدة.", "#10b981");
-        this.hideManualOption();
     }
 
     showManualOption() {
-        let manualBtn = document.getElementById('manual-checkin-btn');
-        if (!manualBtn) {
-            manualBtn = document.createElement('button');
-            manualBtn.id = 'manual-checkin-btn';
-            manualBtn.className = 'btn-action';
-            manualBtn.style.cssText = 'background: #10b981; margin-top: 10px; display: flex;';
-            manualBtn.innerHTML = '<i class="fa-solid fa-hand-pointer"></i> تسجيل دخول يدوي (أوفلاين)';
-            manualBtn.onclick = () => {
-                const branchId = this.detectBranch();
-                this.submitAttendance(branchId);
-            };
-            this.toggleBtn.parentNode.insertBefore(manualBtn, this.toggleBtn.nextSibling);
-        } else {
-            manualBtn.style.display = 'flex';
+        const btn = document.getElementById('manual-checkin-btn');
+        if (btn) {
+            btn.style.display = 'flex';
+            btn.onclick = () => this.submitAttendance(this.detectBranch());
         }
-    }
-
-    hideManualOption() {
-        const manualBtn = document.getElementById('manual-checkin-btn');
-        if (manualBtn) manualBtn.style.display = 'none';
     }
 
     detectBranch() {
         const urlParams = new URLSearchParams(window.location.search);
-        // Standardize to 'miami' as default to match PC Admin Console
         return urlParams.get('branch') || localStorage.getItem('active_branch') || 'miami';
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    window.Portal = new StaffPortal();
-});
-
+document.addEventListener('DOMContentLoaded', () => { window.Portal = new StaffPortal(); });

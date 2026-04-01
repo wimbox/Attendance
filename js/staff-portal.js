@@ -55,24 +55,30 @@ class StaffPortal {
     }
 
     initConnectionMonitoring() {
-        const dot = document.querySelector('.dot-pulse');
-        const text = document.querySelector('#conn-text');
+        const dot = document.querySelector('.dot-pulse') || document.querySelector('.dot');
+        const text = document.querySelector('#conn-text') || document.querySelector('.conn-status text');
         if (!dot || !text) return;
 
-        const updateUI = (online) => {
-            dot.className = online ? "dot-pulse dot-green" : "dot-pulse dot-red";
-            text.innerText = online ? "متصل أونلاين 🔥" : "غير متصل بالإنترنت";
+        const updateUI = (online, cloud) => {
+            if (cloud) {
+                dot.className = "dot-pulse dot-green";
+                text.innerText = "متصل بالسحاب 🔥";
+            } else if (online) {
+                dot.className = "dot-pulse dot-orange";
+                text.innerText = "متصل بالنت (بدون سحاب)";
+            } else {
+                dot.className = "dot-pulse dot-red";
+                text.innerText = "غير متصل بالإنترنت";
+            }
         };
 
-        updateUI(navigator.onLine);
-        window.addEventListener('online', () => updateUI(true));
-        window.addEventListener('offline', () => updateUI(false));
-
-        if (window.firebase) {
-            firebase.database().ref(".info/connected").on("value", (snap) => {
-                if (snap.val() === true) updateUI(true);
-            });
-        }
+        // Deep Firebase Sync Check (Looping every 3s)
+        setInterval(() => {
+            const isCloudReady = !!(window.firebase && firebase.apps.length > 0 && window._db);
+            updateUI(navigator.onLine, isCloudReady);
+        }, 3000);
+        
+        updateUI(navigator.onLine, false);
     }
 
     async pullFullSync() {
