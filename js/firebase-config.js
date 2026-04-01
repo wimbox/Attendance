@@ -18,9 +18,13 @@ if (typeof firebase !== 'undefined' && (!firebase.apps || !firebase.apps.length)
             measurementId: "G-EWDTJR6B22"
         };
     }
-    console.log("🚀 Attendance Cloud Sync Engine Loaded (v10.1)");
-    window.ATT_VERSION = "10.1";
-    firebase.initializeApp(window.firebaseConfig);
+    console.log("🚀 Attendance Cloud Sync Engine Loaded (v10.5)");
+    window.ATT_VERSION = "10.5";
+    try {
+        firebase.initializeApp(window.firebaseConfig);
+    } catch (e) {
+        if (!/already exists/.test(e.message)) console.error("Firebase Init Error:", e);
+    }
 }
 
 // 🛡️ Auto-Load Firestore SDK if missing (Silent & Robust)
@@ -30,30 +34,35 @@ if (typeof firebase !== 'undefined' && typeof firebase.firestore !== 'function' 
     script.src = "https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js";
     document.head.appendChild(script);
     script.onload = () => { 
-        console.log("🔥 Firestore SDK Loaded Successfully");
-        if (typeof window.Cloud === 'undefined' || !window.Cloud._initialized) {
-            // Trigger a silent re-init if possible via session persistence
-            if (!sessionStorage.getItem('_cloud_activated')) {
-                sessionStorage.setItem('_cloud_activated', 'true');
-                console.log("🔄 Initial Cloud Activation Reload...");
-                setTimeout(() => window.location.reload(), 500);
-            }
+        console.log("🔥 Firestore SDK Loaded (Async)");
+        if (!sessionStorage.getItem('_cloud_activated')) {
+            sessionStorage.setItem('_cloud_activated', 'true');
+            setTimeout(() => window.location.reload(), 500);
         }
     };
 }
 
-// Global DB Instances
-var _db = (typeof firebase !== 'undefined' && typeof firebase.firestore === 'function') ? firebase.firestore() : null;
-var _rtdb = (typeof firebase !== 'undefined' && typeof firebase.database === 'function') ? firebase.database() : null;
+// Global DB Instances with Safety Guards
+var _db = null;
+var _rtdb = null;
 
-// ✅ Enable Offline Persistence (يعمل حتى بدون إنترنت)
+try {
+    if (typeof firebase !== 'undefined') {
+        if (typeof firebase.firestore === 'function') _db = firebase.firestore();
+        if (typeof firebase.database === 'function') _rtdb = firebase.database();
+    }
+} catch (e) {
+    console.warn("⚠️ Firebase services not yet ready:", e.message);
+}
+
+// ✅ Enable Offline Persistence (Safe Mode)
 if (_db) {
     _db.enablePersistence({ synchronizeTabs: true })
        .catch(err => {
            if (err.code === 'failed-precondition') {
-               console.warn('⚠️ Offline persistence: multiple tabs open');
+               console.warn("Multiple tabs open - persistence disabled.");
            } else if (err.code === 'unimplemented') {
-               console.warn('⚠️ Offline persistence: not supported in this browser');
+               console.warn("Browser doesn't support persistence.");
            }
        });
 }
