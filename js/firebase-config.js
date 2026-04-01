@@ -207,7 +207,8 @@ window.Cloud = {
 
     /** 📡 Real-time Listener */
     onScanReceived: (branchId, callback) => {
-        const startTime = firebase.firestore.Timestamp.fromDate(new Date(Date.now() - 5000));
+        // 🕰️ Robust Lookback: capture anything from the last hour to avoid clock drift issues
+        const startTime = firebase.firestore.Timestamp.fromDate(new Date(Date.now() - 3600000));
         return _db.collection('scans')
             .where('serverTimestamp', '>=', startTime)
             .orderBy('serverTimestamp', 'desc')
