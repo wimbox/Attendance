@@ -30,9 +30,10 @@ if (typeof firebase !== 'undefined' && typeof firebase.firestore !== 'function' 
     script.onload = () => { 
         console.log("🔥 Firestore SDK Loaded Successfully");
         if (typeof window.Cloud === 'undefined' || !window.Cloud._initialized) {
-            // Trigger a silent re-init if possible, or a soft reload as a last resort
-            if (!window._softReloadDone) {
-                window._softReloadDone = true;
+            // Trigger a silent re-init if possible via session persistence
+            if (!sessionStorage.getItem('_cloud_activated')) {
+                sessionStorage.setItem('_cloud_activated', 'true');
+                console.log("🔄 Initial Cloud Activation Reload...");
                 setTimeout(() => window.location.reload(), 500);
             }
         }
