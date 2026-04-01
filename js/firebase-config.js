@@ -132,12 +132,45 @@ window.Cloud = {
         }
     },
 
-    // Fragmented Sync Engine for large data
+    // Fragmented Sync Engine for large data (v4.5 Robust)
+    pushAllRecords: async (data) => {
+        try {
+            const db = await window.Cloud.waitForDB();
+            // Check payload size roughly (JSON string length)
+            const size = JSON.stringify(data).length;
+            if (size > 1000000) {
+                console.warn("⚠️ Payload too large for single Firestore doc (1MB limit). Use GitHub Sync for bulk data.");
+                Toast.show("⚠️ حجم البيانات كبير جداً على السحاب السريع! سيتم الرفع ولكن يرجى استخدام سحاب GitHub للتأمين الشامل.", "warning");
+            }
+
+            return window.Cloud.runWithTimeout(
+                db.collection('database').doc('main').set({
+                    ...data,
+                    lastSync: Date.now(),
+                    syncDevice: navigator.userAgent
+                }),
+                8000
+            );
+        } catch (err) {
+            console.error("Cloud pushAllRecords failure:", err);
+            throw err;
+        }
+    },
+
     pullAllRecords: async () => {
         try {
             const db = await window.Cloud.waitForDB();
-            const snap = await db.collection('database').doc('main').get();
+            const snap = await window.Cloud.runWithTimeout(
+                db.collection('database').doc('main').get(),
+                8000
+            );
             return snap.exists ? snap.data() : null;
-        } catch (e) { console.error(e); return null; }
+        } catch (e) { 
+            console.error("Cloud pullAllRecords failure:", e); 
+            if (e.message === "CLOUD_TIMER_EXPIRED") {
+                Toast.show("⚠️ اتصال السحاب ضعيف حالياً، يرجى المحاولة مرة أخرى.", "warning");
+            }
+            return null; 
+        }
     }
 };
