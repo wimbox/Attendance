@@ -7,26 +7,39 @@
 
 // ⚡ Safe Initialization System
 if (typeof firebase !== 'undefined' && (!firebase.apps || !firebase.apps.length)) {
-    var firebaseConfig = {
-        apiKey: "AIzaSyBXc-L71Dqz-UwOXADcboJHAoXvshntHVg",
-        authDomain: "attendance-f6fdc.firebaseapp.com",
-        projectId: "attendance-f6fdc",
-        storageBucket: "attendance-f6fdc.firebasestorage.app",
-        messagingSenderId: "809905569514",
-        appId: "1:809905569514:web:a2eaebfbc4cab15962a193",
-        measurementId: "G-EWDTJR6B22"
-    };
-    firebase.initializeApp(firebaseConfig);
+    if (typeof window.firebaseConfig === 'undefined') {
+        window.firebaseConfig = {
+            apiKey: "AIzaSyBXc-L71Dqz-UwOXADcboJHAoXvshntHVg",
+            authDomain: "attendance-f6fdc.firebaseapp.com",
+            projectId: "attendance-f6fdc",
+            storageBucket: "attendance-f6fdc.firebasestorage.app",
+            messagingSenderId: "809905569514",
+            appId: "1:809905569514:web:a2eaebfbc4cab15962a193",
+            measurementId: "G-EWDTJR6B22"
+        };
+    }
+    firebase.initializeApp(window.firebaseConfig);
 }
 
-// 🛡️ Auto-Load Firestore SDK if missing
-if (typeof firebase !== 'undefined' && typeof firebase.firestore !== 'function') {
+// 🛡️ Auto-Load Firestore SDK if missing (Silent & Robust)
+if (typeof firebase !== 'undefined' && typeof firebase.firestore !== 'function' && !window._loadingFirestore) {
+    window._loadingFirestore = true;
     const script = document.createElement('script');
     script.src = "https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js";
     document.head.appendChild(script);
-    script.onload = () => { window.location.reload(); }; // Reload once to activate Firestore
+    script.onload = () => { 
+        console.log("🔥 Firestore SDK Loaded Successfully");
+        if (typeof window.Cloud === 'undefined' || !window.Cloud._initialized) {
+            // Trigger a silent re-init if possible, or a soft reload as a last resort
+            if (!window._softReloadDone) {
+                window._softReloadDone = true;
+                setTimeout(() => window.location.reload(), 500);
+            }
+        }
+    };
 }
 
+// Global DB Instances
 var _db = (typeof firebase !== 'undefined' && typeof firebase.firestore === 'function') ? firebase.firestore() : null;
 var _rtdb = (typeof firebase !== 'undefined' && typeof firebase.database === 'function') ? firebase.database() : null;
 
