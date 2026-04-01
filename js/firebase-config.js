@@ -132,6 +132,68 @@ window.Cloud = {
         }
     },
 
+    /** 📥 Get today's scans for logs */
+    pullTodayScans: async () => {
+        try {
+            const db = await window.Cloud.waitForDB();
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            
+            const snap = await window.Cloud.runWithTimeout(
+                db.collection('scans').where('timestamp', '>=', today.getTime()).get(),
+                8000
+            );
+            
+            if (snap.empty) return [];
+            
+            const scans = [];
+            snap.forEach(doc => scans.push(doc.data()));
+            return scans;
+        } catch (e) {
+            console.error("Cloud pullTodayScans failure:", e);
+            if (e.message === "CLOUD_TIMER_EXPIRED") {
+                if (window.Toast) Toast.show("⚠️ تأخرت استجابة السحاب في جلب السجلات.", "warning");
+            }
+            return [];
+        }
+    },
+
+    /** 📡 Listen to real-time scans on Admin Console */
+    onScanReceived: async (branchId, callback, listenerId = 'default') => {
+        try {
+            const db = await window.Cloud.waitForDB();
+            
+            if (!window.Cloud._listeners) window.Cloud._listeners = {};
+            if (window.Cloud._listeners[listenerId]) {
+                window.Cloud._listeners[listenerId](); // Unsubscribe
+            }
+
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            let query = db.collection('scans').where('timestamp', '>=', today.getTime());
+            if (branchId) {
+                query = query.where('branchId', '==', branchId);
+            }
+
+            const unsubscribe = query.onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === "added") {
+                        callback(change.doc.data());
+                    }
+                });
+            }, (error) => {
+                console.error("Cloud listener error:", error);
+            });
+
+            window.Cloud._listeners[listenerId] = unsubscribe;
+            console.log(`📡 Cloud Listener [${listenerId}] Activated for branch: ${branchId || 'ALL'}`);
+            return unsubscribe;
+        } catch (e) {
+            console.error("Failed to setup scan listener:", e);
+        }
+    },
+
     // Fragmented Sync Engine for large data (v4.5 Robust)
     pushAllRecords: async (data) => {
         try {
