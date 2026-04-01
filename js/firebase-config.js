@@ -5,27 +5,34 @@
  * projectId: attendance-f6fdc
  */
 
-// ⚡ Safe Initialization System
-if (typeof firebase !== 'undefined' && (!firebase.apps || !firebase.apps.length)) {
-    if (typeof window.firebaseConfig === 'undefined') {
-        window.firebaseConfig = {
-            apiKey: "AIzaSyBXc-L71Dqz-UwOXADcboJHAoXvshntHVg",
-            authDomain: "attendance-f6fdc.firebaseapp.com",
-            projectId: "attendance-f6fdc",
-            storageBucket: "attendance-f6fdc.firebasestorage.app",
-            messagingSenderId: "809905569514",
-            appId: "1:809905569514:web:a2eaebfbc4cab15962a193",
-            measurementId: "G-EWDTJR6B22"
-        };
+// ⚡ Safe Initialization System (v11.8 Hyper-Safe)
+(function initCloud() {
+    if (typeof firebase === 'undefined') {
+        setTimeout(initCloud, 250);
+        return;
     }
-    console.log("🚀 Attendance Cloud Sync Engine Loaded (v10.5)");
-    window.ATT_VERSION = "10.5";
-    try {
-        firebase.initializeApp(window.firebaseConfig);
-    } catch (e) {
-        if (!/already exists/.test(e.message)) console.error("Firebase Init Error:", e);
+
+    if (!firebase.apps || !firebase.apps.length) {
+        if (!window.firebaseConfig) {
+            window.firebaseConfig = {
+                apiKey: "AIzaSyBXc-L71Dqz-UwOXADcboJHAoXvshntHVg",
+                authDomain: "attendance-f6fdc.firebaseapp.com",
+                projectId: "attendance-f6fdc",
+                storageBucket: "attendance-f6fdc.firebasestorage.app",
+                messagingSenderId: "809905569514",
+                appId: "1:809905569514:web:a2eaebfbc4cab15962a193",
+                measurementId: "G-EWDTJR6B22"
+            };
+        }
+        
+        try {
+            firebase.initializeApp(window.firebaseConfig);
+            console.log("🚀 Attendance Cloud Sync Engine Activated (v11.8)");
+        } catch (e) {
+            console.error("Firebase init failed:", e);
+        }
     }
-}
+})();
 
 // 🛡️ Auto-Load Firestore SDK if missing (Silent & Robust)
 if (typeof firebase !== 'undefined' && typeof firebase.firestore !== 'function' && !window._loadingFirestore) {
@@ -123,34 +130,50 @@ window.FirestoreEngine = {
     }
 };
 
-// 🔗 Cloud Bridge Functions
+// 🔗 Cloud Bridge Functions (v11.9 Stable)
 window.Cloud = {
 
+    /** ⏳ Ensure Firestore is ready before any call */
+    async waitForDB(timeout = 5000) {
+        const start = Date.now();
+        while (!window._db) {
+            if (Date.now() - start > timeout) throw new Error("CLOUD_SDK_TIMEOUT");
+            await new Promise(r => setTimeout(r, 200));
+        }
+        return window._db;
+    },
+
     /** ⏱️ Helper to prevent hanging operations */
-    runWithTimeout(promise, ms = 3000) {
+    runWithTimeout(promise, ms = 4000) {
         let timeoutId;
         const timeout = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error("CLOUD_TIMEOUT")), ms);
+            timeoutId = setTimeout(() => reject(new Error("CLOUD_TIMER_EXPIRED")), ms);
         });
         return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
     },
 
     /** 📤 Push real-time scan */
     pushScan: async (branchId, scanData) => {
-        const payload = { 
-            ...scanData, 
-            timestamp: Date.now(), 
-            branchId, 
-            fingerprint: `${scanData.id}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
-        };
+        try {
+            const db = await window.Cloud.waitForDB();
+            const payload = { 
+                ...scanData, 
+                timestamp: Date.now(), 
+                branchId, 
+                fingerprint: `${scanData.id}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+            };
 
-        return window.Cloud.runWithTimeout(
-            _db.collection('scans').add({
-                ...payload,
-                serverTimestamp: firebase.firestore.FieldValue.serverTimestamp()
-            }),
-            3500 
-        );
+            return window.Cloud.runWithTimeout(
+                db.collection('scans').add({
+                    ...payload,
+                    serverTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+                }),
+                5000 
+            );
+        } catch (err) {
+            console.error("Cloud pushScan failure:", err);
+            throw err;
+        }
     },
 
     /** 📤 Full database sync to Cloud (Optimized) */
