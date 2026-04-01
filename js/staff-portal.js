@@ -410,59 +410,28 @@ class StaffPortal {
             Storage.save(logKey, logs);
         }
 
-        // 2. 🔥 FIREBASE CLOUD SYNC
+        // 2. 🔥 FIREBASE CLOUD SYNC (v11.6 - Stable)
         if (window.Cloud) {
             this.showMsg("جارٍ المزامنة السحابية...", "#f59e0b");
-            
-            let codePrefix = '2'; // Employee
-            if (this.typeSelect.value === 'TRAINER') codePrefix = '3';
-            if (this.typeSelect.value === 'STUDENT') codePrefix = '1';
-
             const actualCode = this.currentUser.serial_id || this.currentUser.code || this.currentUser.trainerCode || this.currentUser.user_code || this.currentUser.id;
 
-            // 🛡️ v11.5 Strict Validation: No more misleading success messages
-            // We wait for real cloud confirmation or a real error.
-
-
-            let pushTask;
-            try {
-                pushTask = window.Cloud.pushScan(branchId, {
-                    ...event,
-                    id: this.currentUser.id,
-                    name: this.currentUser.name,
-                    type: this.typeSelect.value,
-                    code: actualCode
-                });
-            } catch(syncErr) {
-                console.error("❌ Cloud.pushScan threw:", syncErr);
-                clearTimeout(safetyTimer);
-                successShown = true;
-                this.showSuccess(successTitle, successMsg);
-                return;
-            }
-
-            if (pushTask && pushTask.then) {
-                pushTask.then(() => {
-                    clearTimeout(safetyTimer);
-                    if (!successShown) {
-                        successShown = true;
-                        console.log("🔥 Cloud Sync Verified!");
-                        this.showSuccess(successTitle, successMsg);
-                    }
-                }).catch(e => {
-                    clearTimeout(safetyTimer);
-                    if (!successShown) {
-                        successShown = true;
-                        console.error("❌ Cloud Sync Failed:", e);
-                        this.showMsg("تم الحفظ محلياً (فشل المزامنة)", "#ef4444");
-                        setTimeout(() => this.showSuccess(successTitle, successMsg), 1500);
-                    }
-                });
-            } else {
-                clearTimeout(safetyTimer);
-                successShown = true;
-                this.showSuccess(successTitle, successMsg);
-            }
+            (async () => {
+                try {
+                    await window.Cloud.pushScan(branchId, {
+                        ...event,
+                        id: this.currentUser.id,
+                        name: this.currentUser.name,
+                        type: this.typeSelect.value,
+                        code: actualCode
+                    });
+                    console.log("✅ Cloud Sync Success!");
+                    this.showSuccess(successTitle, successMsg);
+                } catch (syncErr) {
+                    console.error("❌ Cloud Sync Failed:", syncErr);
+                    this.showMsg("⚠️ فشل الرفع للسحاب! أغلق حماية المتصفح.", "#ef4444");
+                    setTimeout(() => this.showSuccess(successTitle, successMsg), 2500);
+                }
+            })();
         } else {
             this.showSuccess(successTitle, successMsg);
         }
