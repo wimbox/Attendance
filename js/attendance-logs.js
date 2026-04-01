@@ -29,12 +29,14 @@ class AttendanceLogsController {
         this.dateInput.addEventListener('change', () => this.render());
         
         // 📡 Cloud Sync: Listen for mobile scans while this page is open
-        if (window.Cloud && window.Cloud.startScanBackgroundSync) {
+        if (window.Cloud && window.Cloud.onScanReceived) {
             const branchId = window.Permissions?.getActiveBranchId();
             console.log("🔗 Starting Cloud Sync for Logs on Branch:", branchId || 'All Branches');
             
-            window.Cloud.startScanBackgroundSync(branchId, (scan) => {
+            window.Cloud.onScanReceived(branchId, async (scan) => {
                 console.log("📡 Cloud scan received in Logs:", scan);
+                
+                await this._handleCloudScan(scan);
                 
                 // 🔊 Auditory Feedback on PC (Fixed: playSuccess instead of playBeep)
                 if (window.AudioCore) AudioCore.playSuccess();
@@ -46,7 +48,7 @@ class AttendanceLogsController {
                 
                 // Force a hard refresh
                 setTimeout(() => this.render(), 500);
-            });
+            }, 'logs_listener');
         }
 
         // 🏎️ Real-Time Tab Sync (v8.2)
@@ -88,7 +90,7 @@ class AttendanceLogsController {
                 scans.sort((a,b) => (a.serverTimestamp || 0) - (b.serverTimestamp || 0));
 
                 for (const scan of scans) {
-                    await window.Cloud._handleCloudScan(scan);
+                    await this._handleCloudScan(scan);
                 }
                 
                 this.render();
@@ -113,6 +115,63 @@ class AttendanceLogsController {
         console.log("📅 Resetting to Today:", today);
         this.render();
         if (window.UI && window.UI.notify) window.UI.notify('info', 'تمت العودة لتاريخ اليوم');
+    }
+
+    async _handleCloudScan(scanData) {
+        if (!scanData) return;
+        const dedupKey = `${scanData.id || ''}_${scanData.timestamp || ''}`;
+        if (this._processedScans && this._processedScans.has(dedupKey)) return;
+        if (!this._processedScans) this._processedScans = new Set();
+        this._processedScans.add(dedupKey);
+
+        const id = scanData.id;
+        const type = scanData.type || 'STUDENT';
+        // Convert timestamp to local YYYY-MM-DD
+        const scanDate = new Date(scanData.timestamp || Date.now());
+        const year = scanDate.getFullYear();
+        const month = String(scanDate.getMonth() + 1).padStart(2, '0');
+        const day = String(scanDate.getDate()).padStart(2, '0');
+        const dateKey = `${year}-${month}-${day}`;
+        const timeStr = scanData.time;
+
+        const students = Storage.get('students') || [];
+        const users = Storage.get('users') || [];
+        const trainers = Storage.get('trainers') || [];
+
+        if (type === 'STUDENT') {
+            const student = students.find(s => String(s.id) === String(id));
+            if (!student) return;
+            const att = Storage.get('attendance') || {};
+            const groups = Storage.get('study_groups') || [];
+            const studentGroups = groups.filter(g => (g.students || []).includes(String(id)));
+            
+            if (studentGroups.length === 0) {
+                const groupKey = `${dateKey}_global`;
+                if (!att[groupKey]) att[groupKey] = {};
+                if (!att[groupKey][id]) att[groupKey][id] = { status: 'present', time: timeStr, out: null };
+                else if (!att[groupKey][id].out && att[groupKey][id].time !== timeStr) att[groupKey][id].out = timeStr;
+            } else {
+                studentGroups.forEach(g => {
+                    const groupKey = `${dateKey}_${g.id}`;
+                    if (!att[groupKey]) att[groupKey] = {};
+                    if (!att[groupKey][id]) att[groupKey][id] = { status: 'present', time: timeStr, out: null };
+                    else if (!att[groupKey][id].out && att[groupKey][id].time !== timeStr) att[groupKey][id].out = timeStr;
+                });
+            }
+            Storage.save('attendance', att);
+        } else {
+            let user = type === 'TRAINER' ? trainers.find(t => String(t.id) === String(id)) : users.find(u => String(u.id) === String(id));
+            if (!user) user = { name: scanData.name || id };
+            const logKey = type === 'TRAINER' ? 'trainer_logs' : 'employee_logs';
+            const logs = Storage.get(logKey) || {};
+            if (!logs[dateKey]) logs[dateKey] = {};
+            if (!logs[dateKey][id]) logs[dateKey][id] = { type: type, name: user.name, in: timeStr, out: null, gpsIn: scanData.gps };
+            else if (!logs[dateKey][id].out && logs[dateKey][id].in !== timeStr) {
+                logs[dateKey][id].out = timeStr;
+                logs[dateKey][id].gpsOut = scanData.gps;
+            }
+            Storage.save(logKey, logs);
+        }
     }
 
     // ─── Time Helpers ──────────────────────────────────────────
