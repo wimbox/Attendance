@@ -337,9 +337,14 @@
                             <div class="control-card">
                                 <h3><span>مزامنة سحابية (Auto-Sync)</span> <i class="fa-solid fa-rotate"></i></h3>
                                 <p>مزامنة قواعد بيانات الفرع فورياً وتأمينها في خوادم مشفرة ضد التلف أو الحذف.</p>
-                                <button class="app-btn-primary" onclick="syncNow()"
-                                    style="justify-content: center;"><i
-                                        class="fa-solid fa-cloud-arrow-up"></i> ابدأ المزامنة الآن</button>
+                                <div style="display: flex; gap: 10px;">
+                                    <button class="app-btn-primary" onclick="syncNow()" style="flex: 1; justify-content: center;">
+                                        <i class="fa-solid fa-cloud-arrow-up"></i> ابدأ المزامنة
+                                    </button>
+                                    <button class="app-btn-primary" onclick="pullFromCloud()" style="flex: 1; justify-content: center; background: #6366f1 !important;">
+                                        <i class="fa-solid fa-cloud-arrow-down"></i> استيراد من السحاب
+                                    </button>
+                                </div>
                                 <div class="sync-status" id="last-sync-time">آخر مزامنة: لم تتم بعد</div>
                             </div>
 
@@ -782,8 +787,59 @@
         };
 
         async function syncNow() {
-            await BackupEngine.syncGlobal();
-            updateSyncTimeDisplay();
+            if (!window.Cloud) return alert("❌ محرك السحاب غير متصل حالياً.");
+            const btn = event.currentTarget;
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري المزامنة...';
+            btn.disabled = true;
+
+            const allData = {};
+            const tables = ['students', 'trainers', 'users', 'ledger', 'invoices'];
+            tables.forEach(t => {
+                const data = Storage.get(`edumaster_${t}`) || Storage.get(t);
+                if (data) allData[t] = data;
+            });
+            const config = Storage.get('edumaster_app_config') || Storage.get('app_config');
+            if (config) allData.app_config = config;
+
+            try {
+                await window.Cloud.pushAllRecords(allData);
+                localStorage.setItem('last_auto_sync', Date.now());
+                updateSyncTimeDisplay();
+                alert("✅ تمت المزامنة السحابية بنجاح!");
+            } catch (e) {
+                alert("❌ فشلت المزامنة: " + e.message);
+            } finally {
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }
+        }
+
+        async function pullFromCloud() {
+            if (!window.Cloud) return alert("❌ محرك السحاب غير متصل حالياً.");
+            if (!confirm("⚠️ هل أنت متأكد؟ سيتم استبدال بيانات الجهاز ببيانات السحاب (Restore).")) return;
+
+            const btn = event.currentTarget;
+            const originalHTML = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التحميل...';
+            btn.disabled = true;
+
+            try {
+                const data = await window.Cloud.pullAllRecords();
+                if (!data) throw new Error("السحاب فارغ أو لا توجد بيانات مسجلة لهذا الحساب.");
+
+                for (const [key, val] of Object.entries(data)) {
+                    const lsKey = key.startsWith('edumaster_') ? key : `edumaster_${key}`;
+                    Storage.save(lsKey, val);
+                }
+                alert("✅ تم استيراد كافة البيانات من السحاب بنجاح! سيتم إعادة تحميل الصفحة للتفعيل.");
+                location.reload();
+            } catch (e) {
+                alert("❌ فشل الاستيراد: " + e.message);
+            } finally {
+                btn.innerHTML = originalHTML;
+                btn.disabled = false;
+            }
         }
 
         function updateGuardianUI() {
@@ -816,14 +872,13 @@
         }
 
         function updateSyncTimeDisplay() {
-            if (!window.BackupEngine) return;
-            const keys = BackupEngine.getKeys();
-            const timeStr = localStorage.getItem(keys.sync);
-            if (timeStr) {
-                document.getElementById('last-sync-time').innerText = `آخر مزامنة ناجحة: ${timeStr}`;
-                document.getElementById('sync-alert').style.display = 'none';
-            } else {
-                document.getElementById('sync-alert').style.display = 'flex';
+            const lastAutoSync = localStorage.getItem('last_auto_sync');
+            const display = document.getElementById('last-sync-time');
+            if (lastAutoSync && display) {
+                const date = new Date(parseInt(lastAutoSync));
+                display.innerText = `آخر مزامنة ناجحة: ${date.toLocaleString('ar-EG')}`;
+                const syncAlert = document.getElementById('sync-alert');
+                if (syncAlert) syncAlert.style.display = 'none';
             }
         }
 
