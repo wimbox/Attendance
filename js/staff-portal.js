@@ -420,15 +420,9 @@ class StaffPortal {
 
             const actualCode = this.currentUser.serial_id || this.currentUser.code || this.currentUser.trainerCode || this.currentUser.user_code || this.currentUser.id;
 
-            // ⏱️ Safety net: Show success after 8s no matter what
-            let successShown = false;
-            const safetyTimer = setTimeout(() => {
-                if (!successShown) {
-                    successShown = true;
-                    console.warn("⚠️ Cloud sync timeout - showing success locally");
-                    this.showSuccess(successTitle, successMsg);
-                }
-            }, 8000);
+            // 🛡️ v11.5 Strict Validation: No more misleading success messages
+            // We wait for real cloud confirmation or a real error.
+
 
             let pushTask;
             try {
