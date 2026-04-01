@@ -77,12 +77,15 @@ window.UICore = {
 
     /** ☁️ Intelligent Cloud Data Recovery (v4.0) */
     async _triggerAutoCloudSync() {
+        if (sessionStorage.getItem('auto_cloud_sync_attempted')) return;
+
         const studentCount = (window.Storage?.get('students') || []).length;
         const trainerCount = (window.Storage?.get('trainers') || []).length;
         
         // Only auto-pull if database seems completely empty (New Browser/Wipe)
         if (studentCount === 0 && trainerCount === 0 && navigator.onLine) {
             console.log("☁️ Empty database detected! Attempting auto-cloud recovery...");
+            sessionStorage.setItem('auto_cloud_sync_attempted', 'true');
             
             // Wait for script loader to finish (up to 5s)
             for(let i=0; i<50; i++) {
@@ -97,8 +100,11 @@ window.UICore = {
 
             try {
                 const data = await window.Cloud.pullAllRecords();
-                if (data && (data.students || data.trainers)) {
-                    console.log("📥 Auto-Recovery: Found cloud data! Injecting...");
+                // Check if data actually has length > 0 before calling it a "recovery"
+                const hasRealData = data && ((data.students && data.students.length > 0) || (data.trainers && data.trainers.length > 0));
+                
+                if (hasRealData) {
+                    console.log("📥 Auto-Recovery: Found active cloud data! Injecting...");
                     if(data.students) Storage.save('students', data.students);
                     if(data.trainers) Storage.save('trainers', data.trainers);
                     if(data.users) Storage.save('users', data.users);
@@ -110,6 +116,8 @@ window.UICore = {
                     
                     Toast.show('🔄 تم استرداد بياناتك تلقائياً من السحاب!', 'success');
                     setTimeout(() => location.reload(), 2000);
+                } else {
+                    console.log("☁️ Cloud is connected but currently holds no active records.");
                 }
             } catch (e) { console.warn("Auto-recovery failed:", e); }
         }
